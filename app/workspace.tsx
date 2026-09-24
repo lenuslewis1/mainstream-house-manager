@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, CircleHelp, Command, Download, FileText, LayoutDashboard, Menu, Paperclip, Plus, Search, Trash2, Upload, Users, Wallet, X } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, CircleHelp, Command, Download, FileText, Handshake, LayoutDashboard, Menu, Paperclip, Pencil, Plus, Search, Trash2, Upload, UserRound, Users, Wallet, X } from "lucide-react";
 import { serviceGroups } from "../lib/services";
 
 type Kind = "lead" | "project" | "task" | "booking" | "finance";
+type ContactKind = "customer" | "partner";
+type Section = "overview" | Kind | ContactKind;
 type Item = { id: string; kind: Kind; title: string; client: string; service: string; status: string; due_date: string; notes: string; amount: string; currency: string; direction: string; source_lead_id: string | null; created_at: number; updated_at: number };
 type LeadAsset = { id: string; file_name: string; content_type: string; size_bytes: number; uploaded_at: number; uploaded_by: string };
+type Contact = { id: string; kind: ContactKind; name: string; contact_person: string; phone: string; email: string; specialty: string; notes: string; created_at: number; updated_at: number };
 const statuses: Record<Kind, string[]> = {
   lead: ["New", "Contacted", "Proposal sent", "Won", "Lost"],
   project: ["Planning", "In progress", "In review", "Delivered", "On hold"],
@@ -22,6 +25,8 @@ const nav = [
   { key: "task", label: "Tasks", icon: CheckSquare2 },
   { key: "booking", label: "Bookings", icon: CalendarDays },
   { key: "finance", label: "Finances", icon: Wallet },
+  { key: "customer", label: "Customers", icon: UserRound },
+  { key: "partner", label: "Partners", icon: Handshake },
 ] as const;
 
 async function api(path: string, options?: RequestInit): Promise<{items?: Item[]; error?: string; id?: string; ok?: boolean}> {
@@ -32,13 +37,15 @@ async function api(path: string, options?: RequestInit): Promise<{items?: Item[]
 }
 
 export default function Workspace() {
-  const [section, setSection] = useState<"overview" | Kind>("overview");
+  const [section, setSection] = useState<Section>("overview");
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<Kind | null>(null);
+  const [editItem, setEditItem] = useState<Item | null>(null);
   const [assetLeadId, setAssetLeadId] = useState<string | null>(null);
+  const [assetProjectId, setAssetProjectId] = useState<string | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const [busyId, setBusyId] = useState("");
 
@@ -94,7 +101,7 @@ export default function Workspace() {
     finally { setBusyId(""); }
   }
   async function remove(item: Item) {
-    if (!window.confirm(item.kind === "lead" ? `Delete “${item.title}” and its attached files?` : `Delete “${item.title}”?`)) return;
+    if (!window.confirm(item.kind === "lead" || item.kind === "project" ? `Delete “${item.title}” and its attached files?` : `Delete “${item.title}”?`)) return;
     setBusyId(item.id);
     try { await api(`/api/items/${item.id}`, { method: "DELETE" }); await reload(); }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to delete."); }
@@ -111,28 +118,32 @@ export default function Workspace() {
     <main className="main">
       <header className="topbar"><div className="topbar-left"><button className="menu-button" onClick={() => setMobileNav(v => !v)} aria-label="Toggle menu"><Menu size={21}/></button><span className="breadcrumb">Workspace</span><span className="slash">/</span><strong>{title}</strong></div><div className="topbar-right"><span className="private-pill"><span/> Private workspace</span><div className="avatar" aria-label="Mainstream House">MH</div></div></header>
       <div className="content">
-        <div className="intro"><div><div className="eyebrow"><span className="eyebrow-line"/> MAINSTREAM HOUSE / OPERATIONS</div><h1>{section === "overview" ? <>Good work starts<br/><i>with a clear view.</i></> : title}</h1><p>{section === "overview" ? "Enquiries, delivery, bookings, and finances in one shared workspace." : section === "lead" ? "Follow each enquiry from first contact to decision." : section === "project" ? "Keep delivery moving from brief to handoff." : section === "task" ? "Stay on top of the work that needs attention." : section === "booking" ? "Track scheduled client work and appointments." : "Record income and expenses for the team to review."}</p></div><button className="primary-button" onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={18}/> New {section === "overview" ? "lead" : labels[section].toLowerCase()} <ArrowRight size={18}/></button></div>
+        <div className="intro"><div><div className="eyebrow"><span className="eyebrow-line"/> MAINSTREAM HOUSE / OPERATIONS</div><h1>{section === "overview" ? <>Good work starts<br/><i>with a clear view.</i></> : title}</h1><p>{section === "overview" ? "Enquiries, delivery, bookings, and finances in one shared workspace." : section === "lead" ? "Follow each enquiry from first contact to decision." : section === "project" ? "Keep delivery moving from brief to handoff." : section === "task" ? "Stay on top of the work that needs attention." : section === "booking" ? "Track scheduled client work and appointments." : section === "customer" ? "Keep your customer details in one place." : section === "partner" ? "Keep the printing and fulfillment partners you work with close at hand." : "Record income and expenses for the team to review."}</p></div>{section !== "customer" && section !== "partner" && <button className="primary-button" onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={18}/> New {section === "overview" ? "lead" : labels[section].toLowerCase()} <ArrowRight size={18}/></button>}</div>
         {section === "overview" && <section className="stat-grid" aria-label="Current work"><button onClick={() => setSection("lead")} className="stat-card"><span className="stat-icon lime"><Users size={19}/></span><span className="stat-label">OPEN LEADS</span><strong>{counts.leads.toString().padStart(2,"0")}</strong><span className="stat-foot">Enquiries to follow up <ArrowRight size={16}/></span></button><button onClick={() => setSection("project")} className="stat-card"><span className="stat-icon violet"><BriefcaseBusiness size={19}/></span><span className="stat-label">ACTIVE PROJECTS</span><strong>{counts.projects.toString().padStart(2,"0")}</strong><span className="stat-foot">Work in motion <ArrowRight size={16}/></span></button><button onClick={() => setSection("task")} className="stat-card"><span className="stat-icon orange"><CheckSquare2 size={19}/></span><span className="stat-label">OPEN TASKS</span><strong>{counts.tasks.toString().padStart(2,"0")}</strong><span className="stat-foot">Next actions <ArrowRight size={16}/></span></button></section>}
         {section === "overview" && <div className="quick-row"><button onClick={() => setSection("booking")}><CalendarDays size={18}/><span><strong>{counts.bookings} upcoming bookings</strong><small>View schedule</small></span><ArrowRight size={17}/></button><button onClick={() => setSection("finance")}><Wallet size={18}/><span><strong>{counts.finances} finance entries</strong><small>View income and expenses</small></span><ArrowRight size={17}/></button></div>}
-        <section className="records"><div className="records-head"><div><span className="section-number">01 / YOUR WORK</span><h2>{section === "overview" ? "Recent activity" : `All ${title.toLowerCase()}`}</h2></div><div className="records-actions"><label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search work" aria-label="Search work"/></label><button className="outline-button" onClick={() => setDialog(section === "overview" ? "project" : section)}><Plus size={17}/> Add {section === "overview" ? "project" : labels[section].toLowerCase()}</button></div></div>
+        {(section === "customer" || section === "partner") ? <ContactsPanel key={section} kind={section} /> : <><section className="records"><div className="records-head"><div><span className="section-number">01 / YOUR WORK</span><h2>{section === "overview" ? "Recent activity" : `All ${title.toLowerCase()}`}</h2></div><div className="records-actions"><label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search work" aria-label="Search work"/></label><button className="outline-button" onClick={() => setDialog(section === "overview" ? "project" : section)}><Plus size={17}/> Add {section === "overview" ? "project" : labels[section].toLowerCase()}</button></div></div>
           {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Try again</button></div>}
-          {loading ? <div className="empty">Loading your work…</div> : visible.length === 0 ? <div className="empty"><span className="empty-symbol"><Command size={23}/></span><h3>{query ? "No matching work" : "Nothing on the board yet"}</h3><p>{query ? "Try another search term." : "Add your first record to begin tracking work here."}</p>{!query && <button onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={16}/> Add {section === "overview" ? "a lead" : `a ${labels[section].toLowerCase()}`}</button>}</div> : <WorkTable items={visible} busyId={busyId} onStatus={changeStatus} onDelete={remove} onConvert={convertLead} onViewAssets={leadId => { setAssetLeadId(leadId); setSection("lead"); }} convertedLeadIds={convertedLeadIds} />}
+          {loading ? <div className="empty">Loading your work…</div> : visible.length === 0 ? <div className="empty"><span className="empty-symbol"><Command size={23}/></span><h3>{query ? "No matching work" : "Nothing on the board yet"}</h3><p>{query ? "Try another search term." : "Add your first record to begin tracking work here."}</p>{!query && <button onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={16}/> Add {section === "overview" ? "a lead" : `a ${labels[section].toLowerCase()}`}</button>}</div> : <WorkTable items={visible} busyId={busyId} onStatus={changeStatus} onDelete={remove} onConvert={convertLead} onEdit={setEditItem} onViewLeadAssets={leadId => { setAssetLeadId(leadId); setSection("lead"); }} onViewProjectAssets={projectId => { setAssetProjectId(projectId); setSection("project"); }} convertedLeadIds={convertedLeadIds} />}
         </section>
-        {section === "lead" && <LeadAssetsPanel leads={items.filter(item => item.kind === "lead")} selectedLeadId={assetLeadId} />}
+        {section === "lead" && <WorkAssetsPanel kind="lead" records={items.filter(item => item.kind === "lead")} selectedId={assetLeadId} />}
+        {section === "project" && <WorkAssetsPanel kind="project" records={items.filter(item => item.kind === "project")} selectedId={assetProjectId} />}</>}
         <footer className="footer"><span>MAINSTREAM HOUSE / WORKSPACE</span><span>Built for the work behind the work.</span></footer>
       </div>
     </main>
     {dialog && <NewItemDialog kind={dialog} onClose={() => setDialog(null)} onCreated={() => { setDialog(null); void reload(); }} />}
+    {editItem && <EditItemDialog item={editItem} onClose={() => setEditItem(null)} onSaved={() => { setEditItem(null); void reload(); }} />}
   </div>;
 }
 
-function WorkTable({ items, busyId, onStatus, onDelete, onConvert, onViewAssets, convertedLeadIds }: {
+function WorkTable({ items, busyId, onStatus, onDelete, onConvert, onEdit, onViewLeadAssets, onViewProjectAssets, convertedLeadIds }: {
   items: Item[];
   busyId: string;
   onStatus: (item: Item, status: string) => Promise<void>;
   onDelete: (item: Item) => Promise<void>;
   onConvert: (item: Item) => Promise<void>;
-  onViewAssets: (leadId: string) => void;
+  onEdit: (item: Item) => void;
+  onViewLeadAssets: (leadId: string) => void;
+  onViewProjectAssets: (projectId: string) => void;
   convertedLeadIds: Set<string | null>;
 }) {
   return <div className="table-wrap"><table><thead><tr><th>WORK</th><th>CLIENT</th><th>SERVICE / TYPE</th><th>DATE / AMOUNT</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>{items.map(item => {
@@ -143,70 +154,139 @@ function WorkTable({ items, busyId, onStatus, onDelete, onConvert, onViewAssets,
       <td>{item.kind === "finance" ? item.direction : item.service || <span className="muted">—</span>}</td>
       <td>{item.kind === "finance" ? `${item.currency} ${item.amount}` : item.due_date ? new Date(`${item.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : <span className="muted">—</span>}</td>
       <td><select className={`status status-${item.status.toLowerCase().replaceAll(" ", "-")}`} aria-label={`Status for ${item.title}`} disabled={busyId === item.id || converted} value={item.status} onChange={event => void onStatus(item, event.target.value)}>{statuses[item.kind].map(status => <option key={status}>{status}</option>)}</select></td>
-      <td><div className="row-actions">{item.kind === "lead" && !converted ? <button className="convert-button" disabled={busyId === item.id} onClick={() => void onConvert(item)}>Convert to project <ArrowRight size={14}/></button> : converted ? <span className="converted-label">Project created</span> : item.kind === "project" && item.source_lead_id ? <button className="convert-button" onClick={() => onViewAssets(item.source_lead_id!)}>Lead assets <Paperclip size={14}/></button> : null}<button className="delete-button" disabled={busyId === item.id} onClick={() => void onDelete(item)} aria-label={`Delete ${item.title}`}><X size={16}/></button></div></td>
+      <td><div className="row-actions">{item.kind === "lead" && !converted ? <button className="convert-button" disabled={busyId === item.id} onClick={() => void onConvert(item)}>Convert to project <ArrowRight size={14}/></button> : converted ? <span className="converted-label">Project created</span> : null}{item.kind === "project" && item.source_lead_id && <button className="convert-button" onClick={() => onViewLeadAssets(item.source_lead_id!)}>Lead assets <Paperclip size={14}/></button>}{item.kind === "project" && <button className="convert-button" onClick={() => onViewProjectAssets(item.id)}>Project assets <Paperclip size={14}/></button>}{(item.kind === "lead" || item.kind === "project") && <button className="icon-button" disabled={busyId === item.id} onClick={() => onEdit(item)} aria-label={`Edit ${item.title}`} title="Edit"><Pencil size={16}/></button>}<button className="delete-button" disabled={busyId === item.id} onClick={() => void onDelete(item)} aria-label={`Delete ${item.title}`}><X size={16}/></button></div></td>
     </tr>;
   })}</tbody></table></div>;
 }
 
-function LeadAssetsPanel({ leads, selectedLeadId }: { leads: Item[]; selectedLeadId: string | null }) {
-  const [leadId, setLeadId] = useState(selectedLeadId ?? "");
+function WorkAssetsPanel({ kind, records, selectedId }: { kind: "lead" | "project"; records: Item[]; selectedId: string | null }) {
+  const [recordId, setRecordId] = useState(selectedId ?? "");
+  const path = kind === "lead" ? "leads" : "projects";
   const [assets, setAssets] = useState<LeadAsset[]>([]);
   const [selected, setSelected] = useState<File | null>(null);
   const [inputKey, setInputKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => { if (selectedLeadId) setLeadId(selectedLeadId); }, [selectedLeadId]);
+  useEffect(() => { if (selectedId) setRecordId(selectedId); }, [selectedId]);
   useEffect(() => {
-    if (!leads.some(lead => lead.id === leadId)) setLeadId(leads[0]?.id ?? "");
-  }, [leads, leadId]);
+    if (!records.some(record => record.id === recordId)) setRecordId(records[0]?.id ?? "");
+  }, [records, recordId]);
   const loadAssets = useCallback(async (id: string) => {
     if (!id) { setAssets([]); return; }
     setLoading(true);
     try {
-      const response = await fetch(`/api/leads/${id}/assets`, { cache: "no-store" });
+      const response = await fetch(`/api/${path}/${id}/assets`, { cache: "no-store" });
       const data = await response.json() as { assets?: LeadAsset[]; error?: string };
       if (!response.ok) throw new Error(data.error || "Could not load assets.");
       setAssets(data.assets || []);
       setError("");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load assets."); }
     finally { setLoading(false); }
-  }, []);
-  useEffect(() => { void loadAssets(leadId); }, [leadId, loadAssets]);
+  }, [path]);
+  useEffect(() => { void loadAssets(recordId); }, [recordId, loadAssets]);
   async function upload(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected || !leadId) return;
+    if (!selected || !recordId) return;
     if (selected.size > 25 * 1024 * 1024) { setError("Files must be 25 MB or smaller."); return; }
     setSaving(true); setError("");
     try {
       const form = new FormData(); form.set("file", selected);
-      const response = await fetch(`/api/leads/${leadId}/assets`, { method: "POST", body: form });
+      const response = await fetch(`/api/${path}/${recordId}/assets`, { method: "POST", body: form });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error || "Upload failed.");
       setSelected(null); setInputKey(value => value + 1);
-      await loadAssets(leadId);
+      await loadAssets(recordId);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Upload failed."); }
     finally { setSaving(false); }
   }
   async function removeAsset(asset: LeadAsset) {
-    if (!window.confirm(`Delete “${asset.file_name}” from this lead?`)) return;
+    if (!window.confirm(`Delete “${asset.file_name}” from this ${kind}?`)) return;
     setSaving(true); setError("");
     try {
-      const response = await fetch(`/api/leads/${leadId}/assets/${asset.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/${path}/${recordId}/assets/${asset.id}`, { method: "DELETE" });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error || "Could not delete asset.");
-      await loadAssets(leadId);
+      await loadAssets(recordId);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not delete asset."); }
     finally { setSaving(false); }
   }
   return <section className="assets-panel" aria-labelledby="assets-heading">
-    <div className="assets-heading"><div><span className="section-number">02 / LEAD FILES</span><h2 id="assets-heading"><Paperclip size={21}/> Assets</h2><p>Keep briefs, references, and working files with their lead.</p></div><label>Lead<select value={leadId} onChange={event => setLeadId(event.target.value)} disabled={!leads.length}>{leads.length ? leads.map(lead => <option key={lead.id} value={lead.id}>{lead.title}{lead.client ? ` · ${lead.client}` : ""}</option>) : <option value="">No leads yet</option>}</select></label></div>
-    {!leads.length ? <div className="assets-empty">Add a lead above to start attaching files.</div> : <>
+    <div className="assets-heading"><div><span className="section-number">02 / {kind.toUpperCase()} FILES</span><h2 id="assets-heading"><Paperclip size={21}/> Assets</h2><p>Keep briefs, references, and working files with their {kind}.</p></div><label>{kind === "lead" ? "Lead" : "Project"}<select value={recordId} onChange={event => setRecordId(event.target.value)} disabled={!records.length}>{records.length ? records.map(record => <option key={record.id} value={record.id}>{record.title}{record.client ? ` · ${record.client}` : ""}</option>) : <option value="">No {path} yet</option>}</select></label></div>
+    {!records.length ? <div className="assets-empty">Add a {kind} above to start attaching files.</div> : <>
       <form className="upload-form" onSubmit={upload}><label className="file-picker"><Upload size={18}/><span>{selected ? selected.name : "Choose a file"}</span><input key={inputKey} type="file" onChange={event => setSelected(event.target.files?.[0] ?? null)} aria-label="Choose asset to upload"/></label><span className="file-limit">Up to 25 MB per file</span><button type="submit" className="primary-button" disabled={!selected || saving}>{saving ? "Saving…" : "Upload asset"}</button></form>
       {error && <div className="error" role="alert">{error}</div>}
-      {loading ? <div className="assets-empty">Loading assets…</div> : assets.length ? <ul className="asset-list">{assets.map(asset => <li key={asset.id}><span className="asset-icon"><FileText size={18}/></span><div className="asset-details"><strong>{asset.file_name}</strong><small>{(asset.size_bytes / 1024 / 1024).toFixed(2)} MB · {new Date(asset.uploaded_at).toLocaleDateString()} · {asset.uploaded_by}</small></div><a href={`/api/leads/${leadId}/assets/${asset.id}`} aria-label={`Download ${asset.file_name}`}><Download size={18}/><span>Download</span></a><button type="button" onClick={() => void removeAsset(asset)} disabled={saving} aria-label={`Delete ${asset.file_name}`}><Trash2 size={17}/></button></li>)}</ul> : <div className="assets-empty">No files attached to this lead yet.</div>}
+      {loading ? <div className="assets-empty">Loading assets…</div> : assets.length ? <ul className="asset-list">{assets.map(asset => <li key={asset.id}><span className="asset-icon"><FileText size={18}/></span><div className="asset-details"><strong>{asset.file_name}</strong><small>{(asset.size_bytes / 1024 / 1024).toFixed(2)} MB · {new Date(asset.uploaded_at).toLocaleDateString()} · {asset.uploaded_by}</small></div><a href={`/api/${path}/${recordId}/assets/${asset.id}`} aria-label={`Download ${asset.file_name}`}><Download size={18}/><span>Download</span></a><button type="button" onClick={() => void removeAsset(asset)} disabled={saving} aria-label={`Delete ${asset.file_name}`}><Trash2 size={17}/></button></li>)}</ul> : <div className="assets-empty">No files attached to this {kind} yet.</div>}
     </>}
   </section>;
+}
+
+function EditItemDialog({ item, onClose, onSaved }: { item: Item; onClose: () => void; onSaved: () => void }) {
+  const [title, setTitle] = useState(item.title);
+  const [client, setClient] = useState(item.client);
+  const [service, setService] = useState(item.service);
+  const [dueDate, setDueDate] = useState(item.due_date);
+  const [notes, setNotes] = useState(item.notes);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const knownServices = serviceGroups.flatMap(group => group.items.map(name => `${group.name} / ${name}`));
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); setSaving(true); setError("");
+    try { await api(`/api/items/${item.id}`, { method: "PATCH", body: JSON.stringify({ mode: "details", title, client, service, dueDate, notes }) }); onSaved(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save changes."); }
+    finally { setSaving(false); }
+  }
+  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-item-title">
+    <div className="modal-top"><div><span className="section-number">EDIT / {item.kind.toUpperCase()}</span><h2 id="edit-item-title">Edit {item.kind}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close"><X size={20}/></button></div>
+    <form onSubmit={submit}><label>Title <input autoFocus required maxLength={160} value={title} onChange={event => setTitle(event.target.value)}/></label><div className="form-row"><label>Client <input maxLength={160} value={client} onChange={event => setClient(event.target.value)}/></label><label>Service <select value={service} onChange={event => setService(event.target.value)}><option value="">Select subservice</option>{service && !knownServices.includes(service) && <option value={service}>{service}</option>}{serviceGroups.map(group => <optgroup key={group.name} label={group.name}>{group.items.map(name => <option key={name} value={`${group.name} / ${name}`}>{name}</option>)}</optgroup>)}</select></label></div><label>Due date <input type="date" value={dueDate} onChange={event => setDueDate(event.target.value)}/></label><label>Notes <textarea rows={4} maxLength={4000} value={notes} onChange={event => setNotes(event.target.value)}/></label>{error && <div className="error" role="alert">{error}</div>}<div className="modal-actions"><button className="cancel-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}<ArrowRight size={17}/></button></div></form>
+  </div></div>;
+}
+
+function ContactsPanel({ kind }: { kind: ContactKind }) {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [dialog, setDialog] = useState<Contact | "new" | null>(null);
+  const [busyId, setBusyId] = useState("");
+  const noun = kind === "customer" ? "customer" : "partner";
+  const reload = useCallback(async () => {
+    try { const response = await fetch(`/api/contacts?kind=${kind}`, { cache: "no-store" }); const data = await response.json() as { contacts?: Contact[]; error?: string }; if (!response.ok) throw new Error(data.error || "Could not load contacts."); setContacts(data.contacts || []); setError(""); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load contacts."); }
+    finally { setLoading(false); }
+  }, [kind]);
+  useEffect(() => { void reload(); }, [reload]);
+  async function remove(contact: Contact) {
+    if (!window.confirm(`Delete ${contact.name} from ${kind === "customer" ? "customers" : "partners"}?`)) return;
+    setBusyId(contact.id);
+    try { await api(`/api/contacts/${contact.id}`, { method: "DELETE" }); await reload(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not delete contact."); }
+    finally { setBusyId(""); }
+  }
+  const visible = contacts.filter(contact => !query || [contact.name, contact.contact_person, contact.phone, contact.email, contact.specialty, contact.notes].join(" ").toLowerCase().includes(query.toLowerCase()));
+  return <section className="records"><div className="records-head"><div><span className="section-number">01 / YOUR {kind.toUpperCase()}S</span><h2>{kind === "customer" ? "Customer directory" : "Partner directory"}</h2></div><div className="records-actions"><label className="search"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder={`Search ${noun}s`} aria-label={`Search ${noun}s`}/></label><button className="outline-button" onClick={() => setDialog("new")}><Plus size={17}/> Add {noun}</button></div></div>
+    {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Try again</button></div>}
+    {loading ? <div className="empty">Loading {noun}s…</div> : visible.length ? <div className="table-wrap"><table><thead><tr><th>NAME</th><th>CONTACT</th><th>PHONE / EMAIL</th><th>{kind === "partner" ? "SPECIALTY" : "DETAILS"}</th><th>ACTION</th></tr></thead><tbody>{visible.map(contact => <tr key={contact.id}><td><div className="item-title">{contact.name}</div>{contact.notes && <div className="item-kind" title={contact.notes}>{contact.notes}</div>}</td><td>{contact.contact_person || <span className="muted">—</span>}</td><td><div className="contact-links">{contact.phone && <a href={`tel:${contact.phone}`}>{contact.phone}</a>}{contact.email && <a href={`mailto:${contact.email}`}>{contact.email}</a>}{!contact.phone && !contact.email && <span className="muted">—</span>}</div></td><td>{contact.specialty || <span className="muted">—</span>}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setDialog(contact)} aria-label={`Edit ${contact.name}`} title="Edit"><Pencil size={16}/></button><button className="delete-button" disabled={busyId === contact.id} onClick={() => void remove(contact)} aria-label={`Delete ${contact.name}`}><X size={16}/></button></div></td></tr>)}</tbody></table></div> : <div className="empty"><span className="empty-symbol">{kind === "customer" ? <UserRound size={23}/> : <Handshake size={23}/>}</span><h3>{query ? "No matching contacts" : `No ${noun}s saved yet`}</h3><p>{query ? "Try another search term." : `Save your first ${noun} to keep their details handy.`}</p>{!query && <button onClick={() => setDialog("new")}><Plus size={16}/> Add {noun}</button>}</div>}
+    {dialog && <ContactDialog key={dialog === "new" ? "new" : dialog.id} kind={kind} contact={dialog === "new" ? null : dialog} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); void reload(); }} />}
+  </section>;
+}
+
+function ContactDialog({ kind, contact, onClose, onSaved }: { kind: ContactKind; contact: Contact | null; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(contact?.name || "");
+  const [contactPerson, setContactPerson] = useState(contact?.contact_person || "");
+  const [phone, setPhone] = useState(contact?.phone || "");
+  const [email, setEmail] = useState(contact?.email || "");
+  const [specialty, setSpecialty] = useState(contact?.specialty || "");
+  const [notes, setNotes] = useState(contact?.notes || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); setSaving(true); setError("");
+    try { await api(contact ? `/api/contacts/${contact.id}` : "/api/contacts", { method: contact ? "PATCH" : "POST", body: JSON.stringify({ kind, name, contactPerson, phone, email, specialty, notes }) }); onSaved(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save contact."); }
+    finally { setSaving(false); }
+  }
+  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="contact-title"><div className="modal-top"><div><span className="section-number">{contact ? "EDIT" : "NEW"} / {kind.toUpperCase()}</span><h2 id="contact-title">{contact ? "Edit" : "Add"} {kind}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close"><X size={20}/></button></div><form onSubmit={submit}><label>{kind === "customer" ? "Customer / business name" : "Partner / business name"}<input autoFocus required maxLength={160} value={name} onChange={event => setName(event.target.value)}/></label><div className="form-row"><label>Contact person<input maxLength={160} value={contactPerson} onChange={event => setContactPerson(event.target.value)}/></label><label>{kind === "partner" ? "Service / specialty" : "Details"}<input maxLength={160} value={specialty} onChange={event => setSpecialty(event.target.value)} placeholder={kind === "partner" ? "Printing, fulfillment, delivery…" : "Organization or customer type"}/></label></div><div className="form-row"><label>Phone<input type="tel" maxLength={60} value={phone} onChange={event => setPhone(event.target.value)}/></label><label>Email<input type="email" maxLength={254} value={email} onChange={event => setEmail(event.target.value)}/></label></div><label>Notes<textarea rows={4} maxLength={4000} value={notes} onChange={event => setNotes(event.target.value)} placeholder="Useful context for the team"/></label>{error && <div className="error" role="alert">{error}</div>}<div className="modal-actions"><button className="cancel-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : `Save ${kind}`}<ArrowRight size={17}/></button></div></form></div></div>;
 }
 
 function NewItemDialog({ kind, onClose, onCreated }: { kind: Kind; onClose: () => void; onCreated: () => void }) {
