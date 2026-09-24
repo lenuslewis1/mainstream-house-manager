@@ -40,19 +40,19 @@ export async function POST(request: Request) {
   const price = String(input.price ?? "0").trim();
   const cost = String(input.cost ?? "0").trim();
   const projectId = String(input.projectId ?? "").trim();
-  if (!statuses[kind] || !title || title.length > 160 || !statuses[kind].includes(status) || (kind === "lead" && status === "Won") || client.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (kind === "booking" && !dueDate) || (kind === "project" && (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency))) || (kind === "finance" && (!validMoney(amount) || !/^[A-Z]{3}$/.test(currency) || !["Income", "Expense"].includes(direction)))) {
+  if (!statuses[kind] || !title || title.length > 160 || !statuses[kind].includes(status) || (kind === "lead" && status === "Won") || client.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (kind === "booking" && !dueDate) || (["project", "booking"].includes(kind) && (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency))) || (kind === "finance" && (!validMoney(amount) || !/^[A-Z]{3}$/.test(currency) || !["Income", "Expense"].includes(direction)))) {
     return Response.json({ error: "Check the required fields." }, { status: 400 });
   }
   const id = crypto.randomUUID();
   const now = Date.now();
   try {
     if (kind === "finance" && projectId) {
-      const project = await env.DB!.prepare("SELECT currency FROM work_items WHERE id = ? AND kind = 'project'").bind(projectId).first<{currency: string}>();
-      if (!project) return Response.json({ error: "Choose an existing project." }, { status: 400 });
-      if ((project.currency || "GHS") !== currency) return Response.json({ error: "Finance entry currency must match the project currency." }, { status: 400 });
+      const project = await env.DB!.prepare("SELECT currency FROM work_items WHERE id = ? AND kind IN ('project', 'booking')").bind(projectId).first<{currency: string}>();
+      if (!project) return Response.json({ error: "Choose an existing order." }, { status: 400 });
+      if ((project.currency || "GHS") !== currency) return Response.json({ error: "Finance entry currency must match the order currency." }, { status: 400 });
     }
     await env.DB!.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", kind === "finance" || kind === "project" ? currency : "", kind === "finance" ? direction : "", kind === "project" ? price : "0", kind === "project" ? cost : "0", kind === "finance" && projectId ? projectId : null, now, now).run();
+      .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", ["finance", "project", "booking"].includes(kind) ? currency : "", kind === "finance" ? direction : "", ["project", "booking"].includes(kind) ? price : "0", ["project", "booking"].includes(kind) ? cost : "0", kind === "finance" && projectId ? projectId : null, now, now).run();
     return Response.json({ id }, { status: 201 });
   } catch (error) {
     console.error("Unable to save work item", error);

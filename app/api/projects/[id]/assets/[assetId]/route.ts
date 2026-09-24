@@ -6,7 +6,7 @@ type Params = { params: Promise<{ id: string; assetId: string }> };
 type AssetRow = { id: string; object_key: string; file_name: string; content_type: string };
 
 async function findAsset(projectId: string, assetId: string): Promise<AssetRow | null> {
-  return env.DB!.prepare("SELECT a.id, a.object_key, a.file_name, a.content_type FROM project_assets a JOIN work_items w ON w.id = a.project_id WHERE a.id = ? AND a.project_id = ? AND w.kind = 'project'")
+  return env.DB!.prepare("SELECT a.id, a.object_key, a.file_name, a.content_type FROM project_assets a JOIN work_items w ON w.id = a.project_id WHERE a.id = ? AND a.project_id = ? AND w.kind IN ('project', 'booking')")
     .bind(assetId, projectId).first<AssetRow>();
 }
 

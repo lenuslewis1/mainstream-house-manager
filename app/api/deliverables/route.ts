@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const projectId = new URL(request.url).searchParams.get("projectId");
   try {
     const query = `SELECT d.*, w.title AS project_title, w.client AS project_client, w.status AS project_status
-      FROM project_deliverables d JOIN work_items w ON w.id = d.project_id AND w.kind = 'project'
+      FROM project_deliverables d JOIN work_items w ON w.id = d.project_id AND w.kind IN ('project', 'booking')
       ${projectId ? "WHERE d.project_id = ?" : ""} ORDER BY d.due_date ASC, d.created_at ASC`;
     const result = await (projectId ? env.DB!.prepare(query).bind(projectId) : env.DB!.prepare(query)).all();
     return Response.json({ deliverables: result.results });
@@ -26,8 +26,8 @@ export async function POST(request: Request) {
   const details = input && parseDeliverable(input);
   if (!projectId || !details) return Response.json({ error: "Check the deliverable details." }, { status: 400 });
   try {
-    const project = await env.DB!.prepare("SELECT id FROM work_items WHERE id = ? AND kind = 'project'").bind(projectId).first();
-    if (!project) return Response.json({ error: "Project not found" }, { status: 404 });
+    const project = await env.DB!.prepare("SELECT id FROM work_items WHERE id = ? AND kind IN ('project', 'booking')").bind(projectId).first();
+    if (!project) return Response.json({ error: "Order not found" }, { status: 404 });
     const id = crypto.randomUUID();
     const now = Date.now();
     await env.DB!.prepare("INSERT INTO project_deliverables (id, project_id, title, due_date, status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")

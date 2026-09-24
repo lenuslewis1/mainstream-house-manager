@@ -24,6 +24,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return Response.json({ id: projectId }, { status: 201 });
   } catch (error) {
     console.error("Unable to convert lead", error);
-    return Response.json({ error: "Could not create the project. Please try again." }, { status: 503 });
+    return Response.json({ error: "Could not create the order. Please try again." }, { status: 503 });
   }
 }

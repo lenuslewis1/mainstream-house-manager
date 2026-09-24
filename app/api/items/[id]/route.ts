@@ -32,30 +32,30 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const projectId = String(input.projectId ?? "").trim();
         if (!title || title.length > 160 || client.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || !validMoney(amount) || !/^[A-Z]{3}$/.test(currency) || !["Income", "Expense"].includes(direction)) return Response.json({ error: "Check the required fields." }, { status: 400 });
         if (projectId) {
-          const project = await env.DB!.prepare("SELECT currency FROM work_items WHERE id = ? AND kind = 'project'").bind(projectId).first<{currency: string}>();
-          if (!project) return Response.json({ error: "Choose an existing project." }, { status: 400 });
-          if ((project.currency || "GHS") !== currency) return Response.json({ error: "Finance entry currency must match the project currency." }, { status: 400 });
+          const project = await env.DB!.prepare("SELECT currency FROM work_items WHERE id = ? AND kind IN ('project', 'booking')").bind(projectId).first<{currency: string}>();
+          if (!project) return Response.json({ error: "Choose an existing order." }, { status: 400 });
+          if ((project.currency || "GHS") !== currency) return Response.json({ error: "Finance entry currency must match the order currency." }, { status: 400 });
         }
         await env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, notes = ?, due_date = ?, amount = ?, currency = ?, direction = ?, project_id = ?, updated_at = ? WHERE id = ?")
           .bind(title, client, notes, dueDate, amount, currency, direction, projectId || null, Date.now(), id).run();
         return Response.json({ ok: true });
       }
-      if (item.kind !== "lead" && item.kind !== "project") return Response.json({ error: "This record cannot be edited here." }, { status: 400 });
+      if (item.kind !== "lead" && item.kind !== "project" && item.kind !== "booking") return Response.json({ error: "This record cannot be edited here." }, { status: 400 });
       const title = String(input.title ?? "").trim();
       const client = String(input.client ?? "").trim();
       const service = String(input.service ?? "").trim();
       const dueDate = String(input.dueDate ?? "");
       const notes = String(input.notes ?? "").trim();
-      if (!title || title.length > 160 || client.length > 160 || service.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))) {
+      if (!title || title.length > 160 || client.length > 160 || service.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (item.kind === "booking" && !dueDate)) {
         return Response.json({ error: "Check the required fields." }, { status: 400 });
       }
-      if (item.kind === "project") {
+      if (item.kind === "project" || item.kind === "booking") {
         const price = String(input.price ?? "0").trim();
         const cost = String(input.cost ?? "0").trim();
         const currency = String(input.currency ?? "GHS").trim().toUpperCase();
-        if (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency)) return Response.json({ error: "Enter a valid project price, cost, and currency." }, { status: 400 });
+        if (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency)) return Response.json({ error: "Enter a valid order price, cost, and currency." }, { status: 400 });
         const linked = await env.DB!.prepare("SELECT 1 FROM work_items WHERE project_id = ? AND kind = 'finance' AND currency != ? LIMIT 1").bind(id, currency).first();
-        if (linked) return Response.json({ error: "Project currency must match its linked finance entries." }, { status: 409 });
+        if (linked) return Response.json({ error: "Order currency must match its linked finance entries." }, { status: 409 });
         await env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, price = ?, cost = ?, currency = ?, updated_at = ? WHERE id = ?")
           .bind(title, client, service, dueDate, notes, price, cost, currency, Date.now(), id).run();
       } else {
