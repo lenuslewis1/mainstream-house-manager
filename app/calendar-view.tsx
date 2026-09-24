@@ -9,10 +9,10 @@ const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function dateKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
 function readableDate(key: string) { const [year, month, day] = key.split("-").map(Number); return new Date(year, month - 1, day).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" }); }
 
-export default function CalendarView({ items, deliverables, loading, error, onRetry, onOpenItem }: { items: CalendarItem[]; deliverables: Deliverable[]; loading: boolean; error: string; onRetry: () => void; onOpenItem: (kind: CalendarEvent["targetKind"], id: string) => void }) {
+export default function CalendarView({ items, deliverables, loading, error, initialDate, onRetry, onOpenItem }: { items: CalendarItem[]; deliverables: Deliverable[]; loading: boolean; error: string; initialDate?: string; onRetry: () => void; onOpenItem: (kind: CalendarEvent["targetKind"], id: string) => void }) {
   const today = dateKey(new Date());
-  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [month, setMonth] = useState(() => initialDate ? new Date(`${initialDate}T12:00:00`) : new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState(initialDate || today);
   const [preview, setPreview] = useState<CalendarEvent | null>(null);
   useEffect(() => {
     if (!preview) return;

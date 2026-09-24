@@ -1,0 +1,49 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { cents, money } from "../lib/finance";
+import type { CalendarItem, Deliverable } from "../lib/calendar-types";
+
+type OverviewItem = CalendarItem & { amount: string; currency: string; direction: string };
+type Event = { id: string; date: string; title: string; kind: string; status: string; targetKind: "lead" | "project" | "task" | "booking"; targetId: string; projectStatus?: string };
+const projectStatuses = ["Planning", "In progress", "In review", "Delivered", "On hold"];
+const weekdays = ["M", "T", "W", "T", "F", "S", "S"];
+const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+export default function OverviewPanels({ items, deliverables, loading, onOpenCalendar, onOpenItem, onOpenFinance, onOpenProjects }: { items: OverviewItem[]; deliverables: Deliverable[]; loading: boolean; onOpenCalendar: (date: string) => void; onOpenItem: (kind: Event["targetKind"], id: string) => void; onOpenFinance: () => void; onOpenProjects: () => void }) {
+  const currencies = useMemo(() => [...new Set(items.filter(item => item.kind === "finance").map(item => item.currency || "GHS"))].sort(), [items]);
+  const [currencyChoice, setCurrencyChoice] = useState("GHS");
+  const currency = currencies.includes(currencyChoice) ? currencyChoice : currencies[0] || "GHS";
+  const today = dateKey(new Date());
+  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const events = useMemo<Event[]>(() => [
+    ...items.filter(item => item.kind !== "finance" && /^\d{4}-\d{2}-\d{2}$/.test(item.due_date)).map(item => ({ id: item.id, date: item.due_date, title: item.title, kind: item.kind, status: item.status, targetKind: item.kind as Event["targetKind"], targetId: item.id })),
+    ...deliverables.filter(item => /^\d{4}-\d{2}-\d{2}$/.test(item.due_date)).map(item => ({ id: `deliverable-${item.id}`, date: item.due_date, title: item.title, kind: "deliverable", status: item.status, targetKind: "project" as const, targetId: item.project_id, projectStatus: items.find(project => project.id === item.project_id)?.status || item.project_status })),
+  ].sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title)), [items, deliverables]);
+  const eventsByDay = useMemo(() => { const grouped = new Map<string, number>(); events.forEach(event => grouped.set(event.date, (grouped.get(event.date) || 0) + 1)); return grouped; }, [events]);
+  const upcoming = events.filter(event => event.date >= today).slice(0, 5);
+  const start = new Date(month.getFullYear(), month.getMonth(), 1);
+  start.setDate(1 - (start.getDay() + 6) % 7);
+  const days = Array.from({ length: 42 }, (_, index) => { const day = new Date(start); day.setDate(start.getDate() + index); return day; });
+
+  const projects = items.filter(item => item.kind === "project");
+  const statusCounts = projectStatuses.map(status => ({ status, count: projects.filter(project => project.status === status).length }));
+  const months = Array.from({ length: 6 }, (_, index) => new Date(new Date().getFullYear(), new Date().getMonth() - 5 + index, 1));
+  const monthly = months.map(date => {
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const entries = items.filter(item => item.kind === "finance" && item.status === "Completed" && (item.currency || "GHS") === currency && item.due_date.startsWith(key));
+    return { key, label: date.toLocaleDateString(undefined, { month: "short" }), income: entries.filter(item => item.direction === "Income").reduce((sum, item) => sum + cents(item.amount), 0), expenses: entries.filter(item => item.direction === "Expense").reduce((sum, item) => sum + cents(item.amount), 0) };
+  });
+  const ceiling = Math.max(1, ...monthly.flatMap(row => [row.income, row.expenses]));
+  const hasDatedFinance = monthly.some(row => row.income || row.expenses);
+
+  return <div className="overview-panels">
+    <section className="overview-panel overview-finance"><div className="overview-panel-head"><div><span className="section-number">PERFORMANCE / LAST 6 MONTHS</span><h2>Money in and out</h2></div>{currencies.length > 1 && <label className="overview-currency">Currency <select value={currency} onChange={event => setCurrencyChoice(event.target.value)}>{currencies.map(code => <option key={code}>{code}</option>)}</select></label>}</div><p className="overview-caption">Completed entries with transaction dates · {currency}</p>{loading ? <p className="overview-empty">Loading financials…</p> : hasDatedFinance ? <><div className="overview-chart" role="img" aria-label={`Monthly completed income and expenses in ${currency}. ${monthly.map(row => `${row.label}: income ${money(row.income, currency)}, expenses ${money(row.expenses, currency)}`).join("; ")}`}>
+      {monthly.map(row => <div className="overview-month" key={row.key}><div className="overview-bar-pair"><div className="overview-bar income" style={{height: `${row.income ? Math.max(4, row.income / ceiling * 100) : 0}%`}} title={`${row.label} income: ${money(row.income, currency)}`}/><div className="overview-bar expense" style={{height: `${row.expenses ? Math.max(4, row.expenses / ceiling * 100) : 0}%`}} title={`${row.label} expenses: ${money(row.expenses, currency)}`}/></div><span>{row.label}</span></div>)}
+    </div><div className="overview-chart-legend"><span><i className="income"/> Revenue</span><span><i className="expense"/> Expenses</span></div></> : <p className="overview-empty">No completed entries with transaction dates in the last six months.</p>}<button className="overview-panel-link" onClick={onOpenFinance}>View finances <ArrowRight size={16}/></button></section>
+    <section className="overview-panel overview-projects"><div className="overview-panel-head"><div><span className="section-number">DELIVERY / ALL PROJECTS</span><h2>Project status</h2></div><strong className="overview-total">{projects.length}</strong></div>{loading ? <p className="overview-empty">Loading projects…</p> : projects.length ? <div className="overview-status-chart" role="img" aria-label={statusCounts.map(row => `${row.status}: ${row.count}`).join("; ")}>{statusCounts.map(row => <div className="overview-status-row" key={row.status}><span>{row.status}</span><div className="overview-status-track"><i style={{width: `${row.count / projects.length * 100}%`}}/></div><strong>{row.count}</strong></div>)}</div> : <p className="overview-empty">Add a project to see delivery status here.</p>}<button className="overview-panel-link" onClick={onOpenProjects}>View projects <ArrowRight size={16}/></button></section>
+    <section className="overview-panel overview-calendar"><div className="overview-panel-head"><div><span className="section-number">SCHEDULE / AT A GLANCE</span><h2>{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2></div><div className="overview-month-controls"><button aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><ChevronLeft size={18}/></button><button aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><ChevronRight size={18}/></button></div></div><div className="overview-mini-calendar" aria-label={`Dates in ${month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}`}>{weekdays.map((day, index) => <span className="overview-weekday" key={index}>{day}</span>)}{days.map(day => { const key = dateKey(day); const count = eventsByDay.get(key) || 0; return <button key={key} className={`${day.getMonth() !== month.getMonth() ? "outside" : ""} ${key === today ? "today" : ""}`} aria-label={`${day.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}: ${count} scheduled item${count === 1 ? "" : "s"}`} onClick={() => onOpenCalendar(key)}>{day.getDate()}{count > 0 && <i aria-hidden="true"/>}</button>; })}</div><button className="overview-panel-link" onClick={() => onOpenCalendar(today)}>Open full calendar <ArrowRight size={16}/></button></section>
+    <section className="overview-panel overview-upcoming"><div className="overview-panel-head"><div><span className="section-number">NEXT DATES</span><h2>Coming up</h2></div><CalendarDays size={19}/></div>{loading ? <p className="overview-empty">Loading dates…</p> : upcoming.length ? <div className="overview-upcoming-list">{upcoming.map(event => <button key={event.id} onClick={() => onOpenItem(event.targetKind, event.targetId)}><span className="overview-upcoming-date">{new Date(`${event.date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><span><strong>{event.title}</strong><small>{event.kind === "deliverable" ? `Deliverable · ${event.status} · Project ${event.projectStatus}` : `${event.kind} · ${event.status}`}</small></span><ArrowRight size={16}/></button>)}</div> : <p className="overview-empty">No upcoming dates. Add a due date or project deliverable.</p>}<button className="overview-panel-link" onClick={() => onOpenCalendar(today)}>See all dates <ArrowRight size={16}/></button></section>
+  </div>;
+}
