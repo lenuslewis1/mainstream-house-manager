@@ -27,7 +27,10 @@ export async function DELETE(_request: Request, { params }: Params) {
   if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
   const { id } = await params;
   try {
-    await env.DB!.prepare("DELETE FROM contacts WHERE id = ?").bind(id).run();
+    await env.DB!.batch([
+      env.DB!.prepare("UPDATE work_items SET vendor_id = NULL WHERE vendor_id = ?").bind(id),
+      env.DB!.prepare("DELETE FROM contacts WHERE id = ?").bind(id),
+    ]);
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Unable to delete contact", error);

@@ -12,6 +12,11 @@ const statuses: Record<string, string[]> = {
   finance: ["Pending", "Completed"],
 };
 
+function customerInsert(client: string, now: number) {
+  return env.DB!.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT ?, 'customer', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND TRIM(name) = ? COLLATE NOCASE)")
+    .bind(crypto.randomUUID(), client, now, now, client);
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
   const { id } = await params;
@@ -36,8 +41,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           if (!project) return Response.json({ error: "Choose an existing order." }, { status: 400 });
           if ((project.currency || "GHS") !== currency) return Response.json({ error: "Finance entry currency must match the order currency." }, { status: 400 });
         }
-        await env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, notes = ?, due_date = ?, amount = ?, currency = ?, direction = ?, project_id = ?, updated_at = ? WHERE id = ?")
-          .bind(title, client, notes, dueDate, amount, currency, direction, projectId || null, Date.now(), id).run();
+        const now = Date.now();
+        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, notes = ?, due_date = ?, amount = ?, currency = ?, direction = ?, project_id = ?, updated_at = ? WHERE id = ?")
+          .bind(title, client, notes, dueDate, amount, currency, direction, projectId || null, now, id)];
+        if (client) statements.push(customerInsert(client, now));
+        await env.DB!.batch(statements);
         return Response.json({ ok: true });
       }
       if (item.kind !== "lead" && item.kind !== "project" && item.kind !== "booking") return Response.json({ error: "This record cannot be edited here." }, { status: 400 });
@@ -46,6 +54,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const service = String(input.service ?? "").trim();
       const dueDate = String(input.dueDate ?? "");
       const notes = String(input.notes ?? "").trim();
+      const vendorId = String(input.vendorId ?? "").trim();
       if (!title || title.length > 160 || client.length > 160 || service.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (item.kind === "booking" && !dueDate)) {
         return Response.json({ error: "Check the required fields." }, { status: 400 });
       }
@@ -56,11 +65,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         if (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency)) return Response.json({ error: "Enter a valid order price, cost, and currency." }, { status: 400 });
         const linked = await env.DB!.prepare("SELECT 1 FROM work_items WHERE project_id = ? AND kind = 'finance' AND currency != ? LIMIT 1").bind(id, currency).first();
         if (linked) return Response.json({ error: "Order currency must match its linked finance entries." }, { status: 409 });
-        await env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, price = ?, cost = ?, currency = ?, updated_at = ? WHERE id = ?")
-          .bind(title, client, service, dueDate, notes, price, cost, currency, Date.now(), id).run();
+        if (vendorId && !(await env.DB!.prepare("SELECT id FROM contacts WHERE id = ? AND kind = 'partner'").bind(vendorId).first())) return Response.json({ error: "Choose an existing vendor." }, { status: 400 });
+        const now = Date.now();
+        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, price = ?, cost = ?, currency = ?, vendor_id = ?, updated_at = ? WHERE id = ?")
+          .bind(title, client, service, dueDate, notes, price, cost, currency, vendorId || null, now, id)];
+        if (client) statements.push(customerInsert(client, now));
+        await env.DB!.batch(statements);
       } else {
-        await env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, updated_at = ? WHERE id = ?")
-          .bind(title, client, service, dueDate, notes, Date.now(), id).run();
+        if (vendorId) return Response.json({ error: "Only orders can have vendors." }, { status: 400 });
+        const now = Date.now();
+        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, updated_at = ? WHERE id = ?")
+          .bind(title, client, service, dueDate, notes, now, id)];
+        if (client) statements.push(customerInsert(client, now));
+        await env.DB!.batch(statements);
       }
       return Response.json({ ok: true });
     }
