@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, CircleHelp, Command, Download, FileText, LayoutDashboard, Menu, Paperclip, Plus, Search, Trash2, Upload, Users, Wallet, X } from "lucide-react";
+import { serviceGroups } from "../lib/services";
 
 type Kind = "lead" | "project" | "task" | "booking" | "finance";
-type Item = { id: string; kind: Kind; title: string; client: string; service: string; status: string; due_date: string; notes: string; amount: string; currency: string; direction: string; created_at: number; updated_at: number };
+type Item = { id: string; kind: Kind; title: string; client: string; service: string; status: string; due_date: string; notes: string; amount: string; currency: string; direction: string; source_lead_id: string | null; created_at: number; updated_at: number };
 type LeadAsset = { id: string; file_name: string; content_type: string; size_bytes: number; uploaded_at: number; uploaded_by: string };
-const services = ["Technology", "Graphic Design", "Website Development", "General Printing", "Large Format Printing", "Packaging", "Social Media Management"];
 const statuses: Record<Kind, string[]> = {
   lead: ["New", "Contacted", "Proposal sent", "Won", "Lost"],
   project: ["Planning", "In progress", "In review", "Delivered", "On hold"],
@@ -38,6 +38,7 @@ export default function Workspace() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<Kind | null>(null);
+  const [assetLeadId, setAssetLeadId] = useState<string | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const [busyId, setBusyId] = useState("");
 
@@ -73,14 +74,27 @@ export default function Workspace() {
     bookings: items.filter(item => item.kind === "booking" && !["Completed", "Cancelled"].includes(item.status)).length,
     finances: items.filter(item => item.kind === "finance").length,
   };
+  const convertedLeadIds = useMemo(() => new Set(items.filter(item => item.kind === "project" && item.source_lead_id).map(item => item.source_lead_id)), [items]);
+  async function convertLead(item: Item) {
+    if (!window.confirm(`Create a project from “${item.title}” and mark the lead Won?`)) return;
+    setBusyId(item.id);
+    try {
+      const result = await api(`/api/leads/${item.id}/convert`, { method: "POST" });
+      if (!result.id) throw new Error("Could not create the project.");
+      await reload();
+      setSection("project");
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to create project."); }
+    finally { setBusyId(""); }
+  }
   async function changeStatus(item: Item, status: string) {
+    if (item.kind === "lead" && status === "Won") { await convertLead(item); return; }
     setBusyId(item.id);
     try { await api(`/api/items/${item.id}`, { method: "PATCH", body: JSON.stringify({ status }) }); await reload(); }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to update."); }
     finally { setBusyId(""); }
   }
   async function remove(item: Item) {
-    if (!window.confirm(`Delete “${item.title}”?`)) return;
+    if (!window.confirm(item.kind === "lead" ? `Delete “${item.title}” and its attached files?` : `Delete “${item.title}”?`)) return;
     setBusyId(item.id);
     try { await api(`/api/items/${item.id}`, { method: "DELETE" }); await reload(); }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to delete."); }
@@ -102,9 +116,9 @@ export default function Workspace() {
         {section === "overview" && <div className="quick-row"><button onClick={() => setSection("booking")}><CalendarDays size={18}/><span><strong>{counts.bookings} upcoming bookings</strong><small>View schedule</small></span><ArrowRight size={17}/></button><button onClick={() => setSection("finance")}><Wallet size={18}/><span><strong>{counts.finances} finance entries</strong><small>View income and expenses</small></span><ArrowRight size={17}/></button></div>}
         <section className="records"><div className="records-head"><div><span className="section-number">01 / YOUR WORK</span><h2>{section === "overview" ? "Recent activity" : `All ${title.toLowerCase()}`}</h2></div><div className="records-actions"><label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search work" aria-label="Search work"/></label><button className="outline-button" onClick={() => setDialog(section === "overview" ? "project" : section)}><Plus size={17}/> Add {section === "overview" ? "project" : labels[section].toLowerCase()}</button></div></div>
           {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Try again</button></div>}
-          {loading ? <div className="empty">Loading your work…</div> : visible.length === 0 ? <div className="empty"><span className="empty-symbol"><Command size={23}/></span><h3>{query ? "No matching work" : "Nothing on the board yet"}</h3><p>{query ? "Try another search term." : "Add your first record to begin tracking work here."}</p>{!query && <button onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={16}/> Add {section === "overview" ? "a lead" : `a ${labels[section].toLowerCase()}`}</button>}</div> : <div className="table-wrap"><table><thead><tr><th>WORK</th><th>CLIENT</th><th>SERVICE / TYPE</th><th>DATE / AMOUNT</th><th>STATUS</th><th/></tr></thead><tbody>{visible.map(item => <tr key={item.id}><td><div className="item-title">{item.title}</div><div className="item-kind">{labels[item.kind]}{item.notes ? ` · ${item.notes}` : ""}</div></td><td>{item.client || <span className="muted">—</span>}</td><td>{item.kind === "finance" ? item.direction : item.service || <span className="muted">—</span>}</td><td>{item.kind === "finance" ? `${item.currency} ${item.amount}` : item.due_date ? new Date(`${item.due_date}T12:00:00`).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : <span className="muted">—</span>}</td><td><select className={`status status-${item.status.toLowerCase().replaceAll(" ","-")}`} aria-label={`Status for ${item.title}`} disabled={busyId === item.id} value={item.status} onChange={e => void changeStatus(item,e.target.value)}>{statuses[item.kind].map(s => <option key={s}>{s}</option>)}</select></td><td><button className="delete-button" disabled={busyId === item.id} onClick={() => void remove(item)} aria-label={`Delete ${item.title}`}><X size={16}/></button></td></tr>)}</tbody></table></div>}
+          {loading ? <div className="empty">Loading your work…</div> : visible.length === 0 ? <div className="empty"><span className="empty-symbol"><Command size={23}/></span><h3>{query ? "No matching work" : "Nothing on the board yet"}</h3><p>{query ? "Try another search term." : "Add your first record to begin tracking work here."}</p>{!query && <button onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={16}/> Add {section === "overview" ? "a lead" : `a ${labels[section].toLowerCase()}`}</button>}</div> : <WorkTable items={visible} busyId={busyId} onStatus={changeStatus} onDelete={remove} onConvert={convertLead} onViewAssets={leadId => { setAssetLeadId(leadId); setSection("lead"); }} convertedLeadIds={convertedLeadIds} />}
         </section>
-        {section === "lead" && <LeadAssetsPanel leads={items.filter(item => item.kind === "lead")} />}
+        {section === "lead" && <LeadAssetsPanel leads={items.filter(item => item.kind === "lead")} selectedLeadId={assetLeadId} />}
         <footer className="footer"><span>MAINSTREAM HOUSE / WORKSPACE</span><span>Built for the work behind the work.</span></footer>
       </div>
     </main>
@@ -112,14 +126,37 @@ export default function Workspace() {
   </div>;
 }
 
-function LeadAssetsPanel({ leads }: { leads: Item[] }) {
-  const [leadId, setLeadId] = useState("");
+function WorkTable({ items, busyId, onStatus, onDelete, onConvert, onViewAssets, convertedLeadIds }: {
+  items: Item[];
+  busyId: string;
+  onStatus: (item: Item, status: string) => Promise<void>;
+  onDelete: (item: Item) => Promise<void>;
+  onConvert: (item: Item) => Promise<void>;
+  onViewAssets: (leadId: string) => void;
+  convertedLeadIds: Set<string | null>;
+}) {
+  return <div className="table-wrap"><table><thead><tr><th>WORK</th><th>CLIENT</th><th>SERVICE / TYPE</th><th>DATE / AMOUNT</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>{items.map(item => {
+    const converted = item.kind === "lead" && convertedLeadIds.has(item.id);
+    return <tr key={item.id}>
+      <td><div className="item-title">{item.title}</div><div className="item-kind">{labels[item.kind]}{item.source_lead_id ? " · From lead" : ""}{item.notes ? ` · ${item.notes}` : ""}</div></td>
+      <td>{item.client || <span className="muted">—</span>}</td>
+      <td>{item.kind === "finance" ? item.direction : item.service || <span className="muted">—</span>}</td>
+      <td>{item.kind === "finance" ? `${item.currency} ${item.amount}` : item.due_date ? new Date(`${item.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : <span className="muted">—</span>}</td>
+      <td><select className={`status status-${item.status.toLowerCase().replaceAll(" ", "-")}`} aria-label={`Status for ${item.title}`} disabled={busyId === item.id || converted} value={item.status} onChange={event => void onStatus(item, event.target.value)}>{statuses[item.kind].map(status => <option key={status}>{status}</option>)}</select></td>
+      <td><div className="row-actions">{item.kind === "lead" && !converted ? <button className="convert-button" disabled={busyId === item.id} onClick={() => void onConvert(item)}>Convert to project <ArrowRight size={14}/></button> : converted ? <span className="converted-label">Project created</span> : item.kind === "project" && item.source_lead_id ? <button className="convert-button" onClick={() => onViewAssets(item.source_lead_id!)}>Lead assets <Paperclip size={14}/></button> : null}<button className="delete-button" disabled={busyId === item.id} onClick={() => void onDelete(item)} aria-label={`Delete ${item.title}`}><X size={16}/></button></div></td>
+    </tr>;
+  })}</tbody></table></div>;
+}
+
+function LeadAssetsPanel({ leads, selectedLeadId }: { leads: Item[]; selectedLeadId: string | null }) {
+  const [leadId, setLeadId] = useState(selectedLeadId ?? "");
   const [assets, setAssets] = useState<LeadAsset[]>([]);
   const [selected, setSelected] = useState<File | null>(null);
   const [inputKey, setInputKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => { if (selectedLeadId) setLeadId(selectedLeadId); }, [selectedLeadId]);
   useEffect(() => {
     if (!leads.some(lead => lead.id === leadId)) setLeadId(leads[0]?.id ?? "");
   }, [leads, leadId]);
@@ -190,10 +227,10 @@ function NewItemDialog({ kind, onClose, onCreated }: { kind: Kind; onClose: () =
       <div className="modal-top"><div><span className="section-number">NEW / {labels[kind].toUpperCase()}</span><h2 id="modal-title">Add a {labels[kind].toLowerCase()}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close"><X size={20}/></button></div>
       <form onSubmit={submit}>
         <label>Title <input autoFocus required maxLength={160} value={title} onChange={e=>setTitle(e.target.value)} placeholder={kind === "lead" ? "What does the client need?" : kind === "project" ? "Project name" : kind === "booking" ? "Meeting or booking title" : kind === "finance" ? "What was this for?" : "What needs to be done?"}/></label>
-        <div className="form-row"><label>Client <input maxLength={160} value={client} onChange={e=>setClient(e.target.value)} placeholder="Client or business name"/></label><label>Service <select value={service} onChange={e=>setService(e.target.value)}><option value="">Select service</option>{services.map(s=><option key={s}>{s}</option>)}</select></label></div>
+        <div className="form-row"><label>Client <input maxLength={160} value={client} onChange={e=>setClient(e.target.value)} placeholder="Client or business name"/></label><label>Service <select value={service} onChange={e=>setService(e.target.value)}><option value="">Select subservice</option>{serviceGroups.map(group => <optgroup key={group.name} label={group.name}>{group.items.map(item => <option key={item} value={`${group.name} / ${item}`}>{item}</option>)}</optgroup>)}</select></label></div>
         {kind === "finance" && <div className="form-row"><label>Type <select value={direction} onChange={e=>setDirection(e.target.value)}><option>Income</option><option>Expense</option></select></label><label>Amount <input type="number" min="0.01" step="0.01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label></div>}
         {kind === "finance" && <label>Currency <input required maxLength={3} minLength={3} value={currency} onChange={e=>setCurrency(e.target.value.toUpperCase())} placeholder="GHS"/></label>}
-        <div className="form-row"><label>Status <select value={status} onChange={e=>setStatus(e.target.value)}>{statuses[kind].map(s=><option key={s}>{s}</option>)}</select></label><label>{kind === "booking" ? "Booking date" : kind === "finance" ? "Transaction date" : "Due date"} <input type="date" required={kind === "booking"} value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label></div>
+        <div className="form-row"><label>Status <select value={status} onChange={e=>setStatus(e.target.value)}>{statuses[kind].filter(s => kind !== "lead" || s !== "Won").map(s=><option key={s}>{s}</option>)}</select></label><label>{kind === "booking" ? "Booking date" : kind === "finance" ? "Transaction date" : "Due date"} <input type="date" required={kind === "booking"} value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label></div>
         <label>Notes <textarea maxLength={4000} rows={4} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Brief, next step, or context"/></label>
         {error && <div className="error" role="alert">{error}</div>}
         <div className="modal-actions"><button type="button" className="cancel-button" onClick={onClose}>Cancel</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "Saving…" : `Save ${labels[kind].toLowerCase()}`} <ArrowRight size={17}/></button></div>

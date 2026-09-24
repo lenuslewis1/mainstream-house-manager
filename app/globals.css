@@ -73,3 +73,7 @@ td{border-color:#f2eaf3;color:#6a5b70}
 .asset-list button{color:#88778c}
 .asset-list a:hover,.asset-list button:hover{color:#e33f8f}
 @media(max-width:700px){.assets-panel{padding:20px}.assets-heading{align-items:stretch;flex-direction:column}.assets-heading label,.assets-heading select{width:100%;max-width:none}.upload-form{align-items:stretch;flex-direction:column}.file-picker{max-width:none}.file-limit{margin:0}.asset-list a span{display:none}}
+.row-actions{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.convert-button{border:1px solid #f0c6da;border-radius:6px;background:#fff1f7;color:#9d2866;padding:7px 9px;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700}
+.convert-button:hover{background:#fbdcea}
+.converted-label{border-radius:5px;background:#f5e9f3;color:#805c83;padding:7px 9px;font-size:10px;font-weight:700}

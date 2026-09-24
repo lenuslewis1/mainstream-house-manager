@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const amount = String(input.amount ?? "").trim();
   const currency = String(input.currency ?? "").trim().toUpperCase();
   const direction = String(input.direction ?? "");
-  if (!statuses[kind] || !title || title.length > 160 || !statuses[kind].includes(status) || client.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (kind === "booking" && !dueDate) || (kind === "finance" && (!/^\d+(\.\d{1,2})?$/.test(amount) || !/^[A-Z]{3}$/.test(currency) || !["Income", "Expense"].includes(direction)))) {
+  if (!statuses[kind] || !title || title.length > 160 || !statuses[kind].includes(status) || (kind === "lead" && status === "Won") || client.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (kind === "booking" && !dueDate) || (kind === "finance" && (!/^\d+(\.\d{1,2})?$/.test(amount) || !/^[A-Z]{3}$/.test(currency) || !["Income", "Expense"].includes(direction)))) {
     return Response.json({ error: "Check the required fields." }, { status: 400 });
   }
   const id = crypto.randomUUID();

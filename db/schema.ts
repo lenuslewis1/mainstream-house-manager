@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const workItems = sqliteTable("work_items", {
   id: text("id").primaryKey(),
@@ -12,9 +12,10 @@ export const workItems = sqliteTable("work_items", {
   amount: text("amount").notNull().default(""),
   currency: text("currency").notNull().default(""),
   direction: text("direction").notNull().default(""),
+  sourceLeadId: text("source_lead_id"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-});
+}, table => [uniqueIndex("idx_work_items_source_lead_id").on(table.sourceLeadId)]);
 
 export const leadAssets = sqliteTable("lead_assets", {
   id: text("id").primaryKey(),
