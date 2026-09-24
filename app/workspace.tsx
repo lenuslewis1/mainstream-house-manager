@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, CircleHelp, Command, Download, FileText, Handshake, LayoutDashboard, Menu, Paperclip, Pencil, Plus, Search, Trash2, Upload, UserRound, Users, Wallet, X } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, ChevronDown, CircleHelp, Command, Download, FileText, Handshake, LayoutDashboard, Menu, Paperclip, Pencil, Plus, Search, Trash2, Upload, UserRound, Users, Wallet, X } from "lucide-react";
 import { serviceGroups } from "../lib/services";
 
 type Kind = "lead" | "project" | "task" | "booking" | "finance";
@@ -45,7 +45,6 @@ export default function Workspace() {
   const [dialog, setDialog] = useState<Kind | null>(null);
   const [editItem, setEditItem] = useState<Item | null>(null);
   const [assetLeadId, setAssetLeadId] = useState<string | null>(null);
-  const [assetProjectId, setAssetProjectId] = useState<string | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const [busyId, setBusyId] = useState("");
 
@@ -123,39 +122,43 @@ export default function Workspace() {
         {section === "overview" && <div className="quick-row"><button onClick={() => setSection("booking")}><CalendarDays size={18}/><span><strong>{counts.bookings} upcoming bookings</strong><small>View schedule</small></span><ArrowRight size={17}/></button><button onClick={() => setSection("finance")}><Wallet size={18}/><span><strong>{counts.finances} finance entries</strong><small>View income and expenses</small></span><ArrowRight size={17}/></button></div>}
         {(section === "customer" || section === "partner") ? <ContactsPanel key={section} kind={section} /> : <><section className="records"><div className="records-head"><div><span className="section-number">01 / YOUR WORK</span><h2>{section === "overview" ? "Recent activity" : `All ${title.toLowerCase()}`}</h2></div><div className="records-actions"><label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search work" aria-label="Search work"/></label><button className="outline-button" onClick={() => setDialog(section === "overview" ? "project" : section)}><Plus size={17}/> Add {section === "overview" ? "project" : labels[section].toLowerCase()}</button></div></div>
           {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Try again</button></div>}
-          {loading ? <div className="empty">Loading your work…</div> : visible.length === 0 ? <div className="empty"><span className="empty-symbol"><Command size={23}/></span><h3>{query ? "No matching work" : "Nothing on the board yet"}</h3><p>{query ? "Try another search term." : "Add your first record to begin tracking work here."}</p>{!query && <button onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={16}/> Add {section === "overview" ? "a lead" : `a ${labels[section].toLowerCase()}`}</button>}</div> : <WorkTable items={visible} busyId={busyId} onStatus={changeStatus} onDelete={remove} onConvert={convertLead} onEdit={setEditItem} onViewLeadAssets={leadId => { setAssetLeadId(leadId); setSection("lead"); }} onViewProjectAssets={projectId => { setAssetProjectId(projectId); setSection("project"); }} convertedLeadIds={convertedLeadIds} />}
+          {loading ? <div className="empty">Loading your work…</div> : visible.length === 0 ? <div className="empty"><span className="empty-symbol"><Command size={23}/></span><h3>{query ? "No matching work" : "Nothing on the board yet"}</h3><p>{query ? "Try another search term." : "Add your first record to begin tracking work here."}</p>{!query && <button onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={16}/> Add {section === "overview" ? "a lead" : `a ${labels[section].toLowerCase()}`}</button>}</div> : <WorkTable items={visible} expandId={assetLeadId} onExpandHandled={() => setAssetLeadId(null)} busyId={busyId} onStatus={changeStatus} onDelete={remove} onConvert={convertLead} onEdit={setEditItem} onViewLeadAssets={leadId => { setAssetLeadId(leadId); setSection("lead"); }} convertedLeadIds={convertedLeadIds} />}
         </section>
-        {section === "lead" && <WorkAssetsPanel kind="lead" records={items.filter(item => item.kind === "lead")} selectedId={assetLeadId} />}
-        {section === "project" && <WorkAssetsPanel kind="project" records={items.filter(item => item.kind === "project")} selectedId={assetProjectId} />}</>}
+        </>}
         <footer className="footer"><span>MAINSTREAM HOUSE / WORKSPACE</span><span>Built for the work behind the work.</span></footer>
       </div>
     </main>
-    {dialog && <NewItemDialog kind={dialog} onClose={() => setDialog(null)} onCreated={() => { setDialog(null); void reload(); }} />}
+    {dialog && <NewItemDialog kind={dialog} onClose={() => { setDialog(null); void reload(); }} onCreated={() => { setDialog(null); void reload(); }} />}
     {editItem && <EditItemDialog item={editItem} onClose={() => setEditItem(null)} onSaved={() => { setEditItem(null); void reload(); }} />}
   </div>;
 }
 
-function WorkTable({ items, busyId, onStatus, onDelete, onConvert, onEdit, onViewLeadAssets, onViewProjectAssets, convertedLeadIds }: {
+function WorkTable({ items, expandId, onExpandHandled, busyId, onStatus, onDelete, onConvert, onEdit, onViewLeadAssets, convertedLeadIds }: {
   items: Item[];
+  expandId: string | null;
+  onExpandHandled: () => void;
   busyId: string;
   onStatus: (item: Item, status: string) => Promise<void>;
   onDelete: (item: Item) => Promise<void>;
   onConvert: (item: Item) => Promise<void>;
   onEdit: (item: Item) => void;
   onViewLeadAssets: (leadId: string) => void;
-  onViewProjectAssets: (projectId: string) => void;
   convertedLeadIds: Set<string | null>;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  useEffect(() => { if (expandId && items.some(item => item.id === expandId)) { setExpandedId(expandId); onExpandHandled(); } }, [expandId, items, onExpandHandled]);
   return <div className="table-wrap"><table><thead><tr><th>WORK</th><th>CLIENT</th><th>SERVICE / TYPE</th><th>DATE / AMOUNT</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>{items.map(item => {
     const converted = item.kind === "lead" && convertedLeadIds.has(item.id);
-    return <tr key={item.id}>
-      <td><div className="item-title">{item.title}</div><div className="item-kind">{labels[item.kind]}{item.source_lead_id ? " · From lead" : ""}{item.notes ? ` · ${item.notes}` : ""}</div></td>
+    const expandable = item.kind === "lead" || item.kind === "project";
+    const open = expandedId === item.id;
+    return <Fragment key={item.id}><tr>
+      <td>{expandable ? <button className="item-title detail-title" onClick={() => setExpandedId(open ? null : item.id)} aria-expanded={open} aria-controls={`details-${item.id}`}>{item.title}<ChevronDown size={15} className={open ? "chevron-open" : ""}/></button> : <div className="item-title">{item.title}</div>}<div className="item-kind">{labels[item.kind]}{item.source_lead_id ? " · From lead" : ""}{item.notes ? ` · ${item.notes}` : ""}</div></td>
       <td>{item.client || <span className="muted">—</span>}</td>
       <td>{item.kind === "finance" ? item.direction : item.service || <span className="muted">—</span>}</td>
       <td>{item.kind === "finance" ? `${item.currency} ${item.amount}` : item.due_date ? new Date(`${item.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : <span className="muted">—</span>}</td>
       <td><select className={`status status-${item.status.toLowerCase().replaceAll(" ", "-")}`} aria-label={`Status for ${item.title}`} disabled={busyId === item.id || converted} value={item.status} onChange={event => void onStatus(item, event.target.value)}>{statuses[item.kind].map(status => <option key={status}>{status}</option>)}</select></td>
-      <td><div className="row-actions">{item.kind === "lead" && !converted ? <button className="convert-button" disabled={busyId === item.id} onClick={() => void onConvert(item)}>Convert to project <ArrowRight size={14}/></button> : converted ? <span className="converted-label">Project created</span> : null}{item.kind === "project" && item.source_lead_id && <button className="convert-button" onClick={() => onViewLeadAssets(item.source_lead_id!)}>Lead assets <Paperclip size={14}/></button>}{item.kind === "project" && <button className="convert-button" onClick={() => onViewProjectAssets(item.id)}>Project assets <Paperclip size={14}/></button>}{(item.kind === "lead" || item.kind === "project") && <button className="icon-button" disabled={busyId === item.id} onClick={() => onEdit(item)} aria-label={`Edit ${item.title}`} title="Edit"><Pencil size={16}/></button>}<button className="delete-button" disabled={busyId === item.id} onClick={() => void onDelete(item)} aria-label={`Delete ${item.title}`}><X size={16}/></button></div></td>
-    </tr>;
+      <td><div className="row-actions">{item.kind === "lead" && !converted ? <button className="convert-button" disabled={busyId === item.id} onClick={() => void onConvert(item)}>Convert to project <ArrowRight size={14}/></button> : converted ? <span className="converted-label">Project created</span> : null}{item.kind === "project" && item.source_lead_id && <button className="convert-button" onClick={() => onViewLeadAssets(item.source_lead_id!)}>Lead assets <Paperclip size={14}/></button>}{expandable && <button className="convert-button" onClick={() => setExpandedId(open ? null : item.id)} aria-expanded={open} aria-controls={`details-${item.id}`}>{open ? "Hide details" : "View details"}<ChevronDown size={14} className={open ? "chevron-open" : ""}/></button>}{expandable && <button className="icon-button" disabled={busyId === item.id} onClick={() => onEdit(item)} aria-label={`Edit ${item.title}`} title="Edit"><Pencil size={16}/></button>}<button className="delete-button" disabled={busyId === item.id} onClick={() => void onDelete(item)} aria-label={`Delete ${item.title}`}><X size={16}/></button></div></td>
+    </tr>{expandable && open && <tr className="details-row" id={`details-${item.id}`}><td colSpan={6}><div className="details-content"><div className="details-grid"><div><span>Title</span><strong>{item.title}</strong></div><div><span>Client</span><strong>{item.client || "—"}</strong></div><div><span>Service</span><strong>{item.service || "—"}</strong></div><div><span>Due date</span><strong>{item.due_date || "—"}</strong></div><div><span>Status</span><strong>{item.status}</strong></div><div><span>Created</span><strong>{new Date(item.created_at).toLocaleDateString()}</strong></div></div><div className="details-notes"><span>Notes</span><p>{item.notes || "No notes added."}</p></div><WorkAssetsPanel kind={item.kind as "lead" | "project"} records={[item]} selectedId={item.id}/></div></td></tr>}</Fragment>;
   })}</tbody></table></div>;
 }
 
@@ -211,8 +214,8 @@ function WorkAssetsPanel({ kind, records, selectedId }: { kind: "lead" | "projec
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not delete asset."); }
     finally { setSaving(false); }
   }
-  return <section className="assets-panel" aria-labelledby="assets-heading">
-    <div className="assets-heading"><div><span className="section-number">02 / {kind.toUpperCase()} FILES</span><h2 id="assets-heading"><Paperclip size={21}/> Assets</h2><p>Keep briefs, references, and working files with their {kind}.</p></div><label>{kind === "lead" ? "Lead" : "Project"}<select value={recordId} onChange={event => setRecordId(event.target.value)} disabled={!records.length}>{records.length ? records.map(record => <option key={record.id} value={record.id}>{record.title}{record.client ? ` · ${record.client}` : ""}</option>) : <option value="">No {path} yet</option>}</select></label></div>
+  return <section className="assets-panel" aria-label={`${kind} assets`}>
+    <div className="assets-heading"><div><span className="section-number">{kind.toUpperCase()} FILES</span><h2><Paperclip size={21}/> Assets</h2><p>Briefs, references, and working files for this {kind}.</p></div>{records.length > 1 && <label>{kind === "lead" ? "Lead" : "Project"}<select value={recordId} onChange={event => setRecordId(event.target.value)}>{records.map(record => <option key={record.id} value={record.id}>{record.title}{record.client ? ` · ${record.client}` : ""}</option>)}</select></label>}</div>
     {!records.length ? <div className="assets-empty">Add a {kind} above to start attaching files.</div> : <>
       <form className="upload-form" onSubmit={upload}><label className="file-picker"><Upload size={18}/><span>{selected ? selected.name : "Choose a file"}</span><input key={inputKey} type="file" onChange={event => setSelected(event.target.files?.[0] ?? null)} aria-label="Choose asset to upload"/></label><span className="file-limit">Up to 25 MB per file</span><button type="submit" className="primary-button" disabled={!selected || saving}>{saving ? "Saving…" : "Upload asset"}</button></form>
       {error && <div className="error" role="alert">{error}</div>}
@@ -239,6 +242,7 @@ function EditItemDialog({ item, onClose, onSaved }: { item: Item; onClose: () =>
   return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-item-title">
     <div className="modal-top"><div><span className="section-number">EDIT / {item.kind.toUpperCase()}</span><h2 id="edit-item-title">Edit {item.kind}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close"><X size={20}/></button></div>
     <form onSubmit={submit}><label>Title <input autoFocus required maxLength={160} value={title} onChange={event => setTitle(event.target.value)}/></label><div className="form-row"><label>Client <input maxLength={160} value={client} onChange={event => setClient(event.target.value)}/></label><label>Service <select value={service} onChange={event => setService(event.target.value)}><option value="">Select subservice</option>{service && !knownServices.includes(service) && <option value={service}>{service}</option>}{serviceGroups.map(group => <optgroup key={group.name} label={group.name}>{group.items.map(name => <option key={name} value={`${group.name} / ${name}`}>{name}</option>)}</optgroup>)}</select></label></div><label>Due date <input type="date" value={dueDate} onChange={event => setDueDate(event.target.value)}/></label><label>Notes <textarea rows={4} maxLength={4000} value={notes} onChange={event => setNotes(event.target.value)}/></label>{error && <div className="error" role="alert">{error}</div>}<div className="modal-actions"><button className="cancel-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}<ArrowRight size={17}/></button></div></form>
+    <WorkAssetsPanel kind={item.kind as "lead" | "project"} records={[item]} selectedId={item.id}/>
   </div></div>;
 }
 
@@ -301,19 +305,47 @@ function NewItemDialog({ kind, onClose, onCreated }: { kind: Kind; onClose: () =
   const [direction,setDirection] = useState("Income");
   const [saving,setSaving] = useState(false);
   const [error,setError] = useState("");
-  async function submit(e: React.FormEvent) { e.preventDefault(); setSaving(true); setError(""); try { await api("/api/items", { method: "POST", body: JSON.stringify({ kind,title,client,service,status,dueDate,notes,amount,currency,direction }) }); onCreated(); } catch(e) { setError(e instanceof Error ? e.message : "Could not save."); } finally { setSaving(false); } }
+  const [files, setFiles] = useState<File[]>([]);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (files.some(file => file.size === 0 || file.size > 25 * 1024 * 1024)) { setError("Each file must be between 1 byte and 25 MB."); return; }
+    setSaving(true); setError("");
+    let recordId = savedId;
+    try {
+      if (!recordId) {
+        const result = await api("/api/items", { method: "POST", body: JSON.stringify({ kind,title,client,service,status,dueDate,notes,amount,currency,direction }) });
+        if (!result.id) throw new Error("Could not save the record.");
+        recordId = result.id;
+        setSavedId(recordId);
+      }
+      if (kind === "lead" || kind === "project") {
+        const path = kind === "lead" ? "leads" : "projects";
+        for (let index = 0; index < files.length; index++) {
+          const form = new FormData(); form.set("file", files[index]);
+          const response = await fetch(`/api/${path}/${recordId}/assets`, { method: "POST", body: form });
+          const data = await response.json().catch(() => ({})) as { error?: string };
+          if (!response.ok) { setFiles(files.slice(index)); throw new Error(data.error || `Could not upload ${files[index].name}.`); }
+          setFiles(files.slice(index + 1));
+        }
+      }
+      onCreated();
+    } catch(cause) { setError(`${recordId ? `${labels[kind]} saved. ` : ""}${cause instanceof Error ? cause.message : "Could not save."}${recordId ? " Retry the remaining files or close this form." : ""}`); }
+    finally { setSaving(false); }
+  }
   return <div className="modal-backdrop" onMouseDown={e => { if(e.target === e.currentTarget) onClose(); }}>
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div className="modal-top"><div><span className="section-number">NEW / {labels[kind].toUpperCase()}</span><h2 id="modal-title">Add a {labels[kind].toLowerCase()}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close"><X size={20}/></button></div>
       <form onSubmit={submit}>
-        <label>Title <input autoFocus required maxLength={160} value={title} onChange={e=>setTitle(e.target.value)} placeholder={kind === "lead" ? "What does the client need?" : kind === "project" ? "Project name" : kind === "booking" ? "Meeting or booking title" : kind === "finance" ? "What was this for?" : "What needs to be done?"}/></label>
+        {!savedId && <><label>Title <input autoFocus required maxLength={160} value={title} onChange={e=>setTitle(e.target.value)} placeholder={kind === "lead" ? "What does the client need?" : kind === "project" ? "Project name" : kind === "booking" ? "Meeting or booking title" : kind === "finance" ? "What was this for?" : "What needs to be done?"}/></label>
         <div className="form-row"><label>Client <input maxLength={160} value={client} onChange={e=>setClient(e.target.value)} placeholder="Client or business name"/></label><label>Service <select value={service} onChange={e=>setService(e.target.value)}><option value="">Select subservice</option>{serviceGroups.map(group => <optgroup key={group.name} label={group.name}>{group.items.map(item => <option key={item} value={`${group.name} / ${item}`}>{item}</option>)}</optgroup>)}</select></label></div>
         {kind === "finance" && <div className="form-row"><label>Type <select value={direction} onChange={e=>setDirection(e.target.value)}><option>Income</option><option>Expense</option></select></label><label>Amount <input type="number" min="0.01" step="0.01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label></div>}
         {kind === "finance" && <label>Currency <input required maxLength={3} minLength={3} value={currency} onChange={e=>setCurrency(e.target.value.toUpperCase())} placeholder="GHS"/></label>}
         <div className="form-row"><label>Status <select value={status} onChange={e=>setStatus(e.target.value)}>{statuses[kind].filter(s => kind !== "lead" || s !== "Won").map(s=><option key={s}>{s}</option>)}</select></label><label>{kind === "booking" ? "Booking date" : kind === "finance" ? "Transaction date" : "Due date"} <input type="date" required={kind === "booking"} value={dueDate} onChange={e=>setDueDate(e.target.value)}/></label></div>
-        <label>Notes <textarea maxLength={4000} rows={4} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Brief, next step, or context"/></label>
+        <label>Notes <textarea maxLength={4000} rows={4} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Brief, next step, or context"/></label></>}
+        {(kind === "lead" || kind === "project") && <div className="form-assets"><strong><Paperclip size={16}/> Assets</strong><p>Attach briefs, references, or order files now. Each file can be up to 25 MB.</p><label className="file-picker"><Upload size={18}/><span>{files.length ? `${files.length} file${files.length === 1 ? "" : "s"} selected` : "Choose files"}</span><input type="file" multiple disabled={saving} onChange={event => setFiles(Array.from(event.target.files || []))} aria-label={`Choose ${kind} assets`}/></label>{files.length > 0 && <ul>{files.map((file, index) => <li key={`${file.name}-${index}`}>{file.name} <span>{(file.size / 1024 / 1024).toFixed(2)} MB</span></li>)}</ul>}</div>}
         {error && <div className="error" role="alert">{error}</div>}
-        <div className="modal-actions"><button type="button" className="cancel-button" onClick={onClose}>Cancel</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "Saving…" : `Save ${labels[kind].toLowerCase()}`} <ArrowRight size={17}/></button></div>
+        <div className="modal-actions"><button type="button" className="cancel-button" onClick={onClose}>{savedId ? "Close" : "Cancel"}</button><button type="submit" className="primary-button" disabled={saving}>{saving ? "Saving…" : savedId ? "Retry uploads" : `Save ${labels[kind].toLowerCase()}`} <ArrowRight size={17}/></button></div>
       </form>
     </div>
   </div>;

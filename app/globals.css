@@ -77,3 +77,29 @@ td{border-color:#f2eaf3;color:#6a5b70}
 .convert-button{border:1px solid #f0c6da;border-radius:6px;background:#fff1f7;color:#9d2866;padding:7px 9px;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700}
 .convert-button:hover{background:#fbdcea}
 .converted-label{border-radius:5px;background:#f5e9f3;color:#805c83;padding:7px 9px;font-size:10px;font-weight:700}
+.detail-title{display:inline-flex;align-items:center;gap:8px;border:0;background:none;padding:0;text-align:left;cursor:pointer}
+.detail-title svg,.row-actions .chevron-open{color:#a43370;transition:transform .2s}
+.chevron-open{transform:rotate(180deg)}
+.details-row td{max-width:none;padding:0;background:#fdf9fc}
+.details-content{padding:22px 25px 26px;border-top:1px solid #f2eaf3}
+.details-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 26px}
+.details-grid>div,.details-notes{display:flex;flex-direction:column;gap:5px;min-width:0}
+.details-grid span,.details-notes span{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#967e9c}
+.details-grid strong{font-size:12px;font-weight:600;color:#34223d;overflow-wrap:anywhere}
+.details-notes{margin-top:20px}
+.details-notes p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.55;color:#5b4762}
+.details-content .assets-panel{margin-top:22px}
+.modal .assets-panel{border:0;border-top:1px solid #f1e9f2;border-radius:0;padding:22px 0 0;margin-top:24px}
+.modal .assets-heading{align-items:start}
+.modal .assets-heading h2{font-size:19px}
+.modal .upload-form{flex-wrap:wrap}
+.modal .file-picker{display:flex;flex-direction:row;align-items:center;max-width:none;min-height:47px;width:100%;font-weight:600}
+.modal .file-picker input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.form-assets{border:1px solid #eee0eb;border-radius:8px;padding:16px;background:#fdf9fc}
+.form-assets>strong{display:flex;align-items:center;gap:8px;color:#44284e;font-size:12px}
+.form-assets>strong svg{color:#e33f8f}
+.form-assets p{font-size:11px;line-height:1.5;color:#806f86;margin:7px 0 12px}
+.form-assets ul{list-style:none;margin:10px 0 0;padding:0}
+.form-assets li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:11px;color:#5b4762;border-bottom:1px solid #f1e9f2;overflow-wrap:anywhere}
+.form-assets li span{white-space:nowrap;color:#927f97}
+@media(max-width:700px){.details-content{padding:19px}.details-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.details-content .assets-panel{padding:18px}.modal .assets-panel{padding:22px 0 0}}
