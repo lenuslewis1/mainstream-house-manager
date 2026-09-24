@@ -12,10 +12,13 @@ export const workItems = sqliteTable("work_items", {
   amount: text("amount").notNull().default(""),
   currency: text("currency").notNull().default(""),
   direction: text("direction").notNull().default(""),
+  price: text("price").notNull().default("0"),
+  cost: text("cost").notNull().default("0"),
+  projectId: text("project_id"),
   sourceLeadId: text("source_lead_id"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-}, table => [uniqueIndex("idx_work_items_source_lead_id").on(table.sourceLeadId)]);
+}, table => [uniqueIndex("idx_work_items_source_lead_id").on(table.sourceLeadId), index("idx_work_items_project_id").on(table.projectId)]);
 
 export const leadAssets = sqliteTable("lead_assets", {
   id: text("id").primaryKey(),

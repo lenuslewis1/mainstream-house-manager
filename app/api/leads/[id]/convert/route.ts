@@ -17,7 +17,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const projectId = crypto.randomUUID();
     const now = Date.now();
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, source_lead_id, created_at, updated_at) VALUES (?, 'project', ?, ?, ?, 'Planning', '', ?, '', '', '', ?, ?, ?)")
+      env.DB.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, source_lead_id, created_at, updated_at) VALUES (?, 'project', ?, ?, ?, 'Planning', '', ?, '', 'GHS', '', ?, ?, ?)")
         .bind(projectId, lead.title, lead.client, lead.service, lead.notes, id, now, now),
       env.DB.prepare("UPDATE work_items SET status = 'Won', updated_at = ? WHERE id = ? AND kind = 'lead'").bind(now, id),
     ]);
