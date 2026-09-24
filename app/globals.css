@@ -146,6 +146,7 @@ td{border-color:#f2eaf3;color:#6a5b70}
 .calendar-event-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:10px;color:#786780;line-height:1.4}
 .calendar-event-meta svg{margin-left:auto;color:#b04a82}
 .calendar-empty{font-size:12px;color:#8b798f;line-height:1.55;margin:0}
+.calendar-preview{width:min(100%,460px)}.calendar-preview .modal-top{margin-bottom:17px}.calendar-preview dl{margin:0;display:grid;gap:10px}.calendar-preview dl>div{display:grid;grid-template-columns:110px minmax(0,1fr);gap:12px;border-top:1px solid #f1e9f2;padding-top:10px}.calendar-preview dt{font-size:13px;color:#806f86}.calendar-preview dd{font-size:14px;line-height:1.45;color:#34223d;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.calendar-preview .modal-actions{margin-top:20px}
 .deliverables-panel{margin-top:22px;background:#fff;border:1px solid #eee3f0;border-radius:11px;padding:24px}
 .deliverables-head{display:flex;justify-content:space-between;align-items:end;gap:18px}
 .deliverables-head h2{display:flex;align-items:center;gap:8px;margin:8px 0 4px;font-size:20px;color:#241331}

@@ -5,6 +5,8 @@ export type CalendarItem = {
   client: string;
   status: string;
   due_date: string;
+  service?: string;
+  notes?: string;
 };
 
 export type Deliverable = {
