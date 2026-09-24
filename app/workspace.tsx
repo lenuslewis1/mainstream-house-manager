@@ -88,7 +88,7 @@ export default function Workspace() {
   const title = section === "overview" ? "Workspace overview" : nav.find(n => n.key === section)?.label || "Workspace";
   return <div className="shell">
     <aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
-      <div className="brand"><div className="brand-mark">M<span>.</span></div><div className="brand-word"><strong>MAINSTREAM</strong><span>HOUSE / STUDIO</span></div></div>
+      <div className="brand"><img src="/mainstream-house-logo.svg" alt="Mainstream House" /></div>
       <div className="side-caption">WORKSPACE</div>
       <nav className="navigation" aria-label="Main navigation">{nav.map(link => <button key={link.key} className={section === link.key ? "nav-link active" : "nav-link"} onClick={() => { setSection(link.key); setMobileNav(false); }}><link.icon size={18} strokeWidth={1.8}/><span>{link.label}</span>{link.key === "lead" && counts.leads > 0 ? <em>{counts.leads}</em> : null}</button>)}</nav>
       <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={17}/><div><strong>Keep work together</strong><p>Track enquiries, delivery, bookings, and money.</p></div></div><div className="side-footer">MAINSTREAM HOUSE <span>© 2026</span></div></div>
