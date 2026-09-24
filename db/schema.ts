@@ -39,6 +39,17 @@ export const projectAssets = sqliteTable("project_assets", {
   uploadedBy: text("uploaded_by").notNull(),
 }, table => [index("idx_project_assets_project_id").on(table.projectId)]);
 
+export const projectDeliverables = sqliteTable("project_deliverables", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id").notNull().references(() => workItems.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  dueDate: text("due_date").notNull(),
+  status: text("status").notNull().default("Planned"),
+  notes: text("notes").notNull().default(""),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, table => [index("idx_project_deliverables_project_date").on(table.projectId, table.dueDate)]);
+
 export const contacts = sqliteTable("contacts", {
   id: text("id").primaryKey(),
   kind: text("kind").notNull(),

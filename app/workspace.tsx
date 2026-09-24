@@ -3,10 +3,13 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, ChevronDown, CircleHelp, Command, Download, FileText, Handshake, LayoutDashboard, Menu, Paperclip, Pencil, Plus, Search, Trash2, Upload, UserRound, Users, Wallet, X } from "lucide-react";
 import { serviceGroups } from "../lib/services";
+import CalendarView from "./calendar-view";
+import DeliverablesPanel from "./deliverables-panel";
+import type { Deliverable } from "../lib/calendar-types";
 
 type Kind = "lead" | "project" | "task" | "booking" | "finance";
 type ContactKind = "customer" | "partner";
-type Section = "overview" | Kind | ContactKind;
+type Section = "overview" | "calendar" | Kind | ContactKind;
 type Item = { id: string; kind: Kind; title: string; client: string; service: string; status: string; due_date: string; notes: string; amount: string; currency: string; direction: string; source_lead_id: string | null; created_at: number; updated_at: number };
 type LeadAsset = { id: string; file_name: string; content_type: string; size_bytes: number; uploaded_at: number; uploaded_by: string };
 type Contact = { id: string; kind: ContactKind; name: string; contact_person: string; phone: string; email: string; specialty: string; notes: string; created_at: number; updated_at: number };
@@ -22,6 +25,7 @@ const nav = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "lead", label: "Leads", icon: Users },
   { key: "project", label: "Projects", icon: BriefcaseBusiness },
+  { key: "calendar", label: "Calendar", icon: CalendarDays },
   { key: "task", label: "Tasks", icon: CheckSquare2 },
   { key: "booking", label: "Bookings", icon: CalendarDays },
   { key: "finance", label: "Finances", icon: Wallet },
@@ -39,12 +43,15 @@ async function api(path: string, options?: RequestInit): Promise<{items?: Item[]
 export default function Workspace() {
   const [section, setSection] = useState<Section>("overview");
   const [items, setItems] = useState<Item[]>([]);
+  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+  const [calendarError, setCalendarError] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<Kind | null>(null);
   const [editItem, setEditItem] = useState<Item | null>(null);
-  const [assetLeadId, setAssetLeadId] = useState<string | null>(null);
+  const [expandItemId, setExpandItemId] = useState<string | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const [busyId, setBusyId] = useState("");
 
@@ -54,6 +61,17 @@ export default function Workspace() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void reload(); }, [reload]);
+  const reloadDeliverables = useCallback(async () => {
+    try {
+      const response = await fetch("/api/deliverables", { cache: "no-store" });
+      const data = await response.json() as { deliverables?: Deliverable[]; error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not load deliverables.");
+      setDeliverables(data.deliverables || []);
+      setCalendarError("");
+    } catch (cause) { setCalendarError(cause instanceof Error ? cause.message : "Could not load deliverables."); }
+    finally { setCalendarLoading(false); }
+  }, []);
+  useEffect(() => { void reloadDeliverables(); }, [reloadDeliverables]);
   useEffect(() => {
     const context = (document as Document & {modelContext?: {registerTool: (tool: Record<string, unknown>, options: {signal: AbortSignal}) => void | Promise<void>}}).modelContext;
     if (!context?.registerTool) return;
@@ -117,12 +135,12 @@ export default function Workspace() {
     <main className="main">
       <header className="topbar"><div className="topbar-left"><button className="menu-button" onClick={() => setMobileNav(v => !v)} aria-label="Toggle menu"><Menu size={21}/></button><span className="breadcrumb">Workspace</span><span className="slash">/</span><strong>{title}</strong></div><div className="topbar-right"><span className="private-pill"><span/> Private workspace</span><div className="avatar" aria-label="Mainstream House">MH</div></div></header>
       <div className="content">
-        <div className="intro"><div><div className="eyebrow"><span className="eyebrow-line"/> MAINSTREAM HOUSE / OPERATIONS</div><h1>{section === "overview" ? <>Good work starts<br/><i>with a clear view.</i></> : title}</h1><p>{section === "overview" ? "Enquiries, delivery, bookings, and finances in one shared workspace." : section === "lead" ? "Follow each enquiry from first contact to decision." : section === "project" ? "Keep delivery moving from brief to handoff." : section === "task" ? "Stay on top of the work that needs attention." : section === "booking" ? "Track scheduled client work and appointments." : section === "customer" ? "Keep your customer details in one place." : section === "partner" ? "Keep the printing and fulfillment partners you work with close at hand." : "Record income and expenses for the team to review."}</p></div>{section !== "customer" && section !== "partner" && <button className="primary-button" onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={18}/> New {section === "overview" ? "lead" : labels[section].toLowerCase()} <ArrowRight size={18}/></button>}</div>
+        <div className="intro"><div><div className="eyebrow"><span className="eyebrow-line"/> MAINSTREAM HOUSE / OPERATIONS</div><h1>{section === "overview" ? <>Good work starts<br/><i>with a clear view.</i></> : title}</h1><p>{section === "overview" ? "Enquiries, delivery, bookings, and finances in one shared workspace." : section === "lead" ? "Follow each enquiry from first contact to decision." : section === "project" ? "Keep delivery moving from brief to handoff." : section === "calendar" ? "See upcoming due dates, project milestones, and delivery progress." : section === "task" ? "Stay on top of the work that needs attention." : section === "booking" ? "Track scheduled client work and appointments." : section === "customer" ? "Keep your customer details in one place." : section === "partner" ? "Keep the printing and fulfillment partners you work with close at hand." : "Record income and expenses for the team to review."}</p></div>{section !== "customer" && section !== "partner" && section !== "calendar" && <button className="primary-button" onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={18}/> New {section === "overview" ? "lead" : labels[section].toLowerCase()} <ArrowRight size={18}/></button>}</div>
         {section === "overview" && <section className="stat-grid" aria-label="Current work"><button onClick={() => setSection("lead")} className="stat-card"><span className="stat-icon lime"><Users size={19}/></span><span className="stat-label">OPEN LEADS</span><strong>{counts.leads.toString().padStart(2,"0")}</strong><span className="stat-foot">Enquiries to follow up <ArrowRight size={16}/></span></button><button onClick={() => setSection("project")} className="stat-card"><span className="stat-icon violet"><BriefcaseBusiness size={19}/></span><span className="stat-label">ACTIVE PROJECTS</span><strong>{counts.projects.toString().padStart(2,"0")}</strong><span className="stat-foot">Work in motion <ArrowRight size={16}/></span></button><button onClick={() => setSection("task")} className="stat-card"><span className="stat-icon orange"><CheckSquare2 size={19}/></span><span className="stat-label">OPEN TASKS</span><strong>{counts.tasks.toString().padStart(2,"0")}</strong><span className="stat-foot">Next actions <ArrowRight size={16}/></span></button></section>}
         {section === "overview" && <div className="quick-row"><button onClick={() => setSection("booking")}><CalendarDays size={18}/><span><strong>{counts.bookings} upcoming bookings</strong><small>View schedule</small></span><ArrowRight size={17}/></button><button onClick={() => setSection("finance")}><Wallet size={18}/><span><strong>{counts.finances} finance entries</strong><small>View income and expenses</small></span><ArrowRight size={17}/></button></div>}
-        {(section === "customer" || section === "partner") ? <ContactsPanel key={section} kind={section} /> : <><section className="records"><div className="records-head"><div><span className="section-number">01 / YOUR WORK</span><h2>{section === "overview" ? "Recent activity" : `All ${title.toLowerCase()}`}</h2></div><div className="records-actions"><label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search work" aria-label="Search work"/></label><button className="outline-button" onClick={() => setDialog(section === "overview" ? "project" : section)}><Plus size={17}/> Add {section === "overview" ? "project" : labels[section].toLowerCase()}</button></div></div>
+        {(section === "customer" || section === "partner") ? <ContactsPanel key={section} kind={section} /> : section === "calendar" ? <CalendarView items={items} deliverables={deliverables} loading={loading || calendarLoading} error={error || calendarError} onRetry={() => { void reload(); void reloadDeliverables(); }} onOpenItem={(kind, id) => { setQuery(""); setSection(kind); setExpandItemId(id); }} /> : <><section className="records"><div className="records-head"><div><span className="section-number">01 / YOUR WORK</span><h2>{section === "overview" ? "Recent activity" : `All ${title.toLowerCase()}`}</h2></div><div className="records-actions"><label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search work" aria-label="Search work"/></label><button className="outline-button" onClick={() => setDialog(section === "overview" ? "project" : section)}><Plus size={17}/> Add {section === "overview" ? "project" : labels[section].toLowerCase()}</button></div></div>
           {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Try again</button></div>}
-          {loading ? <div className="empty">Loading your work…</div> : visible.length === 0 ? <div className="empty"><span className="empty-symbol"><Command size={23}/></span><h3>{query ? "No matching work" : "Nothing on the board yet"}</h3><p>{query ? "Try another search term." : "Add your first record to begin tracking work here."}</p>{!query && <button onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={16}/> Add {section === "overview" ? "a lead" : `a ${labels[section].toLowerCase()}`}</button>}</div> : <WorkTable items={visible} expandId={assetLeadId} onExpandHandled={() => setAssetLeadId(null)} busyId={busyId} onStatus={changeStatus} onDelete={remove} onConvert={convertLead} onEdit={setEditItem} onViewLeadAssets={leadId => { setAssetLeadId(leadId); setSection("lead"); }} convertedLeadIds={convertedLeadIds} />}
+          {loading ? <div className="empty">Loading your work…</div> : visible.length === 0 ? <div className="empty"><span className="empty-symbol"><Command size={23}/></span><h3>{query ? "No matching work" : "Nothing on the board yet"}</h3><p>{query ? "Try another search term." : "Add your first record to begin tracking work here."}</p>{!query && <button onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={16}/> Add {section === "overview" ? "a lead" : `a ${labels[section].toLowerCase()}`}</button>}</div> : <WorkTable items={visible} deliverables={deliverables} onDeliverablesChanged={reloadDeliverables} expandId={expandItemId} onExpandHandled={() => setExpandItemId(null)} busyId={busyId} onStatus={changeStatus} onDelete={remove} onConvert={convertLead} onEdit={setEditItem} onViewLeadAssets={leadId => { setExpandItemId(leadId); setSection("lead"); }} convertedLeadIds={convertedLeadIds} />}
         </section>
         </>}
         <footer className="footer"><span>MAINSTREAM HOUSE / WORKSPACE</span><span>Built for the work behind the work.</span></footer>
@@ -133,8 +151,10 @@ export default function Workspace() {
   </div>;
 }
 
-function WorkTable({ items, expandId, onExpandHandled, busyId, onStatus, onDelete, onConvert, onEdit, onViewLeadAssets, convertedLeadIds }: {
+function WorkTable({ items, deliverables, onDeliverablesChanged, expandId, onExpandHandled, busyId, onStatus, onDelete, onConvert, onEdit, onViewLeadAssets, convertedLeadIds }: {
   items: Item[];
+  deliverables: Deliverable[];
+  onDeliverablesChanged: () => Promise<void>;
   expandId: string | null;
   onExpandHandled: () => void;
   busyId: string;
@@ -158,7 +178,7 @@ function WorkTable({ items, expandId, onExpandHandled, busyId, onStatus, onDelet
       <td>{item.kind === "finance" ? `${item.currency} ${item.amount}` : item.due_date ? new Date(`${item.due_date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : <span className="muted">—</span>}</td>
       <td><select className={`status status-${item.status.toLowerCase().replaceAll(" ", "-")}`} aria-label={`Status for ${item.title}`} disabled={busyId === item.id || converted} value={item.status} onChange={event => void onStatus(item, event.target.value)}>{statuses[item.kind].map(status => <option key={status}>{status}</option>)}</select></td>
       <td><div className="row-actions">{item.kind === "lead" && !converted ? <button className="convert-button" disabled={busyId === item.id} onClick={() => void onConvert(item)}>Convert to project <ArrowRight size={14}/></button> : converted ? <span className="converted-label">Project created</span> : null}{item.kind === "project" && item.source_lead_id && <button className="convert-button" onClick={() => onViewLeadAssets(item.source_lead_id!)}>Lead assets <Paperclip size={14}/></button>}{expandable && <button className="convert-button" onClick={() => setExpandedId(open ? null : item.id)} aria-expanded={open} aria-controls={`details-${item.id}`}>{open ? "Hide details" : "View details"}<ChevronDown size={14} className={open ? "chevron-open" : ""}/></button>}{expandable && <button className="icon-button" disabled={busyId === item.id} onClick={() => onEdit(item)} aria-label={`Edit ${item.title}`} title="Edit"><Pencil size={16}/></button>}<button className="delete-button" disabled={busyId === item.id} onClick={() => void onDelete(item)} aria-label={`Delete ${item.title}`}><X size={16}/></button></div></td>
-    </tr>{expandable && open && <tr className="details-row" id={`details-${item.id}`}><td colSpan={6}><div className="details-content"><div className="details-grid"><div><span>Title</span><strong>{item.title}</strong></div><div><span>Client</span><strong>{item.client || "—"}</strong></div><div><span>Service</span><strong>{item.service || "—"}</strong></div><div><span>Due date</span><strong>{item.due_date || "—"}</strong></div><div><span>Status</span><strong>{item.status}</strong></div><div><span>Created</span><strong>{new Date(item.created_at).toLocaleDateString()}</strong></div></div><div className="details-notes"><span>Notes</span><p>{item.notes || "No notes added."}</p></div><WorkAssetsPanel kind={item.kind as "lead" | "project"} records={[item]} selectedId={item.id}/></div></td></tr>}</Fragment>;
+    </tr>{expandable && open && <tr className="details-row" id={`details-${item.id}`}><td colSpan={6}><div className="details-content"><div className="details-grid"><div><span>Title</span><strong>{item.title}</strong></div><div><span>Client</span><strong>{item.client || "—"}</strong></div><div><span>Service</span><strong>{item.service || "—"}</strong></div><div><span>Due date</span><strong>{item.due_date || "—"}</strong></div><div><span>Status</span><strong>{item.status}</strong></div><div><span>Created</span><strong>{new Date(item.created_at).toLocaleDateString()}</strong></div></div><div className="details-notes"><span>Notes</span><p>{item.notes || "No notes added."}</p></div>{item.kind === "project" && <DeliverablesPanel projectId={item.id} deliverables={deliverables.filter(deliverable => deliverable.project_id === item.id)} onChanged={onDeliverablesChanged}/>}<WorkAssetsPanel kind={item.kind as "lead" | "project"} records={[item]} selectedId={item.id}/></div></td></tr>}</Fragment>;
   })}</tbody></table></div>;
 }
 
