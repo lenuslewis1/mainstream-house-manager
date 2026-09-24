@@ -49,3 +49,27 @@ td{border-color:#f2eaf3;color:#6a5b70}
 .quick-row button small{color:#8d6b8c}
 .modal input:focus,.modal select:focus,.modal textarea:focus{border-color:#e33f8f}
 .modal label{color:#5b4762}
+
+.assets-panel{margin-top:22px;background:#fff;border:1px solid #eee3f0;border-radius:11px;padding:25px}
+.assets-heading{display:flex;align-items:end;justify-content:space-between;gap:22px}
+.assets-heading h2{display:flex;align-items:center;gap:9px;margin:9px 0 4px;font-size:23px;letter-spacing:-.8px;color:#241331}
+.assets-heading h2 svg{color:#e33f8f}
+.assets-heading p{margin:0;color:#806f86;font-size:12px}
+.assets-heading label{display:flex;flex-direction:column;gap:6px;color:#745d7b;font-size:11px;font-weight:700;min-width:230px}
+.assets-heading select{background:#fff;border:1px solid #e9ddeb;border-radius:6px;padding:10px 12px;color:#241331;font-size:12px;max-width:290px}
+.upload-form{display:flex;align-items:center;gap:12px;border-top:1px solid #f1e9f2;margin-top:22px;padding-top:20px}
+.file-picker{position:relative;display:flex;align-items:center;gap:9px;min-width:0;max-width:420px;border:1px dashed #d7b4ce;border-radius:7px;padding:12px 14px;color:#a43370;font-size:12px;cursor:pointer}
+.file-picker span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-picker input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+.file-limit{color:#927f97;font-size:11px;margin-right:auto}
+.assets-empty{padding:27px 0 4px;color:#927f97;font-size:12px}
+.asset-list{list-style:none;margin:17px 0 0;padding:0;border-top:1px solid #f1e9f2}
+.asset-list li{display:flex;align-items:center;gap:13px;padding:14px 0;border-bottom:1px solid #f1e9f2}
+.asset-icon{height:35px;width:35px;flex:none;border-radius:7px;background:#fce6f1;color:#c82f7a;display:grid;place-items:center}
+.asset-details{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.asset-details strong{color:#34223d;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asset-details small{color:#937f98;font-size:10px}
+.asset-list a,.asset-list button{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:#a43370;text-decoration:none;font-size:11px;padding:7px}
+.asset-list button{color:#88778c}
+.asset-list a:hover,.asset-list button:hover{color:#e33f8f}
+@media(max-width:700px){.assets-panel{padding:20px}.assets-heading{align-items:stretch;flex-direction:column}.assets-heading label,.assets-heading select{width:100%;max-width:none}.upload-form{align-items:stretch;flex-direction:column}.file-picker{max-width:none}.file-limit{margin:0}.asset-list a span{display:none}}

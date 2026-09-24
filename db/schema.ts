@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const workItems = sqliteTable("work_items", {
   id: text("id").primaryKey(),
@@ -15,3 +15,14 @@ export const workItems = sqliteTable("work_items", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const leadAssets = sqliteTable("lead_assets", {
+  id: text("id").primaryKey(),
+  leadId: text("lead_id").notNull().references(() => workItems.id, { onDelete: "cascade" }),
+  objectKey: text("object_key").notNull(),
+  fileName: text("file_name").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  uploadedAt: integer("uploaded_at").notNull(),
+  uploadedBy: text("uploaded_by").notNull(),
+}, table => [index("idx_lead_assets_lead_id").on(table.leadId)]);

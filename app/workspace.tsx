@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, CircleHelp, Command, LayoutDashboard, Menu, Plus, Search, Users, Wallet, X } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, CircleHelp, Command, Download, FileText, LayoutDashboard, Menu, Paperclip, Plus, Search, Trash2, Upload, Users, Wallet, X } from "lucide-react";
 
 type Kind = "lead" | "project" | "task" | "booking" | "finance";
 type Item = { id: string; kind: Kind; title: string; client: string; service: string; status: string; due_date: string; notes: string; amount: string; currency: string; direction: string; created_at: number; updated_at: number };
+type LeadAsset = { id: string; file_name: string; content_type: string; size_bytes: number; uploaded_at: number; uploaded_by: string };
 const services = ["Technology", "Graphic Design", "Website Development", "General Printing", "Large Format Printing", "Packaging", "Social Media Management"];
 const statuses: Record<Kind, string[]> = {
   lead: ["New", "Contacted", "Proposal sent", "Won", "Lost"],
@@ -103,11 +104,72 @@ export default function Workspace() {
           {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Try again</button></div>}
           {loading ? <div className="empty">Loading your work…</div> : visible.length === 0 ? <div className="empty"><span className="empty-symbol"><Command size={23}/></span><h3>{query ? "No matching work" : "Nothing on the board yet"}</h3><p>{query ? "Try another search term." : "Add your first record to begin tracking work here."}</p>{!query && <button onClick={() => setDialog(section === "overview" ? "lead" : section)}><Plus size={16}/> Add {section === "overview" ? "a lead" : `a ${labels[section].toLowerCase()}`}</button>}</div> : <div className="table-wrap"><table><thead><tr><th>WORK</th><th>CLIENT</th><th>SERVICE / TYPE</th><th>DATE / AMOUNT</th><th>STATUS</th><th/></tr></thead><tbody>{visible.map(item => <tr key={item.id}><td><div className="item-title">{item.title}</div><div className="item-kind">{labels[item.kind]}{item.notes ? ` · ${item.notes}` : ""}</div></td><td>{item.client || <span className="muted">—</span>}</td><td>{item.kind === "finance" ? item.direction : item.service || <span className="muted">—</span>}</td><td>{item.kind === "finance" ? `${item.currency} ${item.amount}` : item.due_date ? new Date(`${item.due_date}T12:00:00`).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : <span className="muted">—</span>}</td><td><select className={`status status-${item.status.toLowerCase().replaceAll(" ","-")}`} aria-label={`Status for ${item.title}`} disabled={busyId === item.id} value={item.status} onChange={e => void changeStatus(item,e.target.value)}>{statuses[item.kind].map(s => <option key={s}>{s}</option>)}</select></td><td><button className="delete-button" disabled={busyId === item.id} onClick={() => void remove(item)} aria-label={`Delete ${item.title}`}><X size={16}/></button></td></tr>)}</tbody></table></div>}
         </section>
+        {section === "lead" && <LeadAssetsPanel leads={items.filter(item => item.kind === "lead")} />}
         <footer className="footer"><span>MAINSTREAM HOUSE / WORKSPACE</span><span>Built for the work behind the work.</span></footer>
       </div>
     </main>
     {dialog && <NewItemDialog kind={dialog} onClose={() => setDialog(null)} onCreated={() => { setDialog(null); void reload(); }} />}
   </div>;
+}
+
+function LeadAssetsPanel({ leads }: { leads: Item[] }) {
+  const [leadId, setLeadId] = useState("");
+  const [assets, setAssets] = useState<LeadAsset[]>([]);
+  const [selected, setSelected] = useState<File | null>(null);
+  const [inputKey, setInputKey] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!leads.some(lead => lead.id === leadId)) setLeadId(leads[0]?.id ?? "");
+  }, [leads, leadId]);
+  const loadAssets = useCallback(async (id: string) => {
+    if (!id) { setAssets([]); return; }
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/leads/${id}/assets`, { cache: "no-store" });
+      const data = await response.json() as { assets?: LeadAsset[]; error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not load assets.");
+      setAssets(data.assets || []);
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load assets."); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void loadAssets(leadId); }, [leadId, loadAssets]);
+  async function upload(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected || !leadId) return;
+    if (selected.size > 25 * 1024 * 1024) { setError("Files must be 25 MB or smaller."); return; }
+    setSaving(true); setError("");
+    try {
+      const form = new FormData(); form.set("file", selected);
+      const response = await fetch(`/api/leads/${leadId}/assets`, { method: "POST", body: form });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Upload failed.");
+      setSelected(null); setInputKey(value => value + 1);
+      await loadAssets(leadId);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Upload failed."); }
+    finally { setSaving(false); }
+  }
+  async function removeAsset(asset: LeadAsset) {
+    if (!window.confirm(`Delete “${asset.file_name}” from this lead?`)) return;
+    setSaving(true); setError("");
+    try {
+      const response = await fetch(`/api/leads/${leadId}/assets/${asset.id}`, { method: "DELETE" });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not delete asset.");
+      await loadAssets(leadId);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not delete asset."); }
+    finally { setSaving(false); }
+  }
+  return <section className="assets-panel" aria-labelledby="assets-heading">
+    <div className="assets-heading"><div><span className="section-number">02 / LEAD FILES</span><h2 id="assets-heading"><Paperclip size={21}/> Assets</h2><p>Keep briefs, references, and working files with their lead.</p></div><label>Lead<select value={leadId} onChange={event => setLeadId(event.target.value)} disabled={!leads.length}>{leads.length ? leads.map(lead => <option key={lead.id} value={lead.id}>{lead.title}{lead.client ? ` · ${lead.client}` : ""}</option>) : <option value="">No leads yet</option>}</select></label></div>
+    {!leads.length ? <div className="assets-empty">Add a lead above to start attaching files.</div> : <>
+      <form className="upload-form" onSubmit={upload}><label className="file-picker"><Upload size={18}/><span>{selected ? selected.name : "Choose a file"}</span><input key={inputKey} type="file" onChange={event => setSelected(event.target.files?.[0] ?? null)} aria-label="Choose asset to upload"/></label><span className="file-limit">Up to 25 MB per file</span><button type="submit" className="primary-button" disabled={!selected || saving}>{saving ? "Saving…" : "Upload asset"}</button></form>
+      {error && <div className="error" role="alert">{error}</div>}
+      {loading ? <div className="assets-empty">Loading assets…</div> : assets.length ? <ul className="asset-list">{assets.map(asset => <li key={asset.id}><span className="asset-icon"><FileText size={18}/></span><div className="asset-details"><strong>{asset.file_name}</strong><small>{(asset.size_bytes / 1024 / 1024).toFixed(2)} MB · {new Date(asset.uploaded_at).toLocaleDateString()} · {asset.uploaded_by}</small></div><a href={`/api/leads/${leadId}/assets/${asset.id}`} aria-label={`Download ${asset.file_name}`}><Download size={18}/><span>Download</span></a><button type="button" onClick={() => void removeAsset(asset)} disabled={saving} aria-label={`Delete ${asset.file_name}`}><Trash2 size={17}/></button></li>)}</ul> : <div className="assets-empty">No files attached to this lead yet.</div>}
+    </>}
+  </section>;
 }
 
 function NewItemDialog({ kind, onClose, onCreated }: { kind: Kind; onClose: () => void; onCreated: () => void }) {

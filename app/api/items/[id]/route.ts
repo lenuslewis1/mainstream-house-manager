@@ -33,7 +33,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
   const { id } = await params;
   try {
+    const assets = await env.DB!.prepare("SELECT object_key FROM lead_assets WHERE lead_id = ?").bind(id).all<{ object_key: string }>();
     await env.DB!.prepare("DELETE FROM work_items WHERE id = ?").bind(id).run();
+    if (assets.results.length && env.BUCKET) {
+      await Promise.all(assets.results.map(asset => env.BUCKET!.delete(asset.object_key).catch(error => console.error("Unable to clean up lead asset", error))));
+    }
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Unable to delete work item", error);
