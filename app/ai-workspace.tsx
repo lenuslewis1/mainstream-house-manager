@@ -1,12 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowRight, ClipboardList, Copy, FileSearch, MessageCircle, Send, Sparkles, WandSparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, ClipboardList, Copy, FileSearch, MessageCircle, Mic, MicOff, Send, Sparkles, WandSparkles } from "lucide-react";
 
 type Mode = "order" | "ask" | "draft" | "extract";
 type Item = { id: string; kind: string; title: string; client: string };
 type Asset = { id: string; kind: "lead" | "order"; parent_id: string; parent_title: string; file_name: string; size_bytes: number };
 type CreatedOrder = { id: string; title: string; client: string; service: string; dueDate: string; price: string; cost: string; currency: string; warnings: string[] };
+type SpeechResult = { isFinal: boolean; 0: { transcript: string } };
+type SpeechEvent = { results: ArrayLike<SpeechResult> };
+type SpeechRecognizer = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechEvent) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+type SpeechWindow = Window & { SpeechRecognition?: new () => SpeechRecognizer; webkitSpeechRecognition?: new () => SpeechRecognizer };
 const modes: { key: Mode; title: string; description: string; icon: typeof Sparkles }[] = [
   { key: "order", title: "Add an order", description: "Turn a written summary into an order", icon: ClipboardList },
   { key: "ask", title: "Ask the workspace", description: "Get answers from saved records", icon: MessageCircle },
@@ -32,6 +46,19 @@ export default function AIWorkspace({ items, onOrderAdded, onOpenOrder }: { item
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
   const [created, setCreated] = useState<CreatedOrder | null>(null);
+  const [speechAvailable, setSpeechAvailable] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [speechError, setSpeechError] = useState("");
+  const recognitionRef = useRef<SpeechRecognizer | null>(null);
+  useEffect(() => {
+    const speechWindow = window as SpeechWindow;
+    setSpeechAvailable(Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition));
+    return () => {
+      const recognition = recognitionRef.current;
+      if (recognition) { recognition.onresult = null; recognition.onerror = null; recognition.onend = null; recognition.abort(); }
+      recognitionRef.current = null;
+    };
+  }, []);
   useEffect(() => {
     if (mode !== "extract") return;
     let active = true;
@@ -42,9 +69,33 @@ export default function AIWorkspace({ items, onOrderAdded, onOpenOrder }: { item
     }).catch(cause => { if (active) setAssetError(cause instanceof Error ? cause.message : "Could not load assets."); });
     return () => { active = false; };
   }, [mode]);
-  function selectMode(next: Mode) { setMode(next); setResult(""); setCreated(null); setError(""); setPrompt(""); }
+  function stopListening() { recognitionRef.current?.stop(); }
+  function startListening() {
+    const speechWindow = window as SpeechWindow;
+    const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!Recognition) { setSpeechError("Voice input is not available in this browser. You can type your request instead."); return; }
+    setSpeechError("");
+    const recognition = new Recognition();
+    const existing = prompt.trim();
+    recognition.lang = navigator.language || "en-GH";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = event => {
+      if (recognitionRef.current !== recognition) return;
+      const spoken = Array.from(event.results).map(result => result[0]?.transcript || "").join(" ").trim();
+      setPrompt([existing, spoken].filter(Boolean).join(" ").slice(0, mode === "order" ? 3000 : 2000));
+    };
+    recognition.onerror = event => {
+      if (event.error !== "aborted") setSpeechError(event.error === "not-allowed" || event.error === "service-not-allowed" ? "Microphone access was denied. Allow it in your browser settings to use voice input." : event.error === "no-speech" ? "No speech was heard. Try again or type your request." : "Voice input stopped. Please try again or type your request.");
+    };
+    recognition.onend = () => { if (recognitionRef.current === recognition) recognitionRef.current = null; setListening(false); };
+    recognitionRef.current = recognition;
+    try { recognition.start(); setListening(true); }
+    catch { recognitionRef.current = null; setListening(false); setSpeechError("Could not start voice input. Please try again or type your request."); }
+  }
+  function selectMode(next: Mode) { recognitionRef.current?.abort(); setListening(false); setSpeechError(""); setMode(next); setResult(""); setCreated(null); setError(""); setPrompt(""); }
   async function submit(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setError(""); setResult(""); setCreated(null);
+    event.preventDefault(); recognitionRef.current?.abort(); setListening(false); setBusy(true); setError(""); setResult(""); setCreated(null);
     try {
       const asset = assets.find(candidate => candidate.id === assetId);
       const response = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode, prompt, recordId, draftType, assetId, assetKind: asset?.kind }) });
@@ -56,8 +107,8 @@ export default function AIWorkspace({ items, onOrderAdded, onOpenOrder }: { item
     finally { setBusy(false); }
   }
   async function copyResult() { try { await navigator.clipboard.writeText(result); } catch { setError("Could not copy the text. Please select it manually."); } }
-  return <section className="ai-workspace" aria-label="AI assistant">
-    <div className="ai-heading"><span className="section-number"><Sparkles size={14}/> MAINSTREAM HOUSE AI</span><h2>Work faster with your workspace</h2><p>Use your saved records to answer questions, create orders, draft copy, and read attached files.</p></div>
+  return <section className="ai-workspace" aria-label="Pomaa AI assistant">
+    <div className="ai-heading"><span className="section-number"><Sparkles size={14}/> MAINSTREAM HOUSE AI</span><h2>Meet Pomaa</h2><p>Your AI assistant for answers, orders, drafts, and attached files.</p></div>
     <div className="ai-mode-grid" role="tablist" aria-label="AI actions">{modes.map(option => <button key={option.key} type="button" role="tab" aria-selected={mode === option.key} className={mode === option.key ? "ai-mode active" : "ai-mode"} onClick={() => selectMode(option.key)}><option.icon size={20}/><strong>{option.title}</strong><span>{option.description}</span></button>)}</div>
     <div className="ai-form-card"><div className="ai-form-heading"><div><span className="section-number">{modes.find(option => option.key === mode)?.title.toUpperCase()}</span><h3>{mode === "order" ? "Describe the order" : mode === "ask" ? "Ask a question" : mode === "draft" ? "Tell us what to write" : "Choose a file"}</h3></div><Sparkles size={24}/></div>
       <form onSubmit={event => void submit(event)}>
@@ -66,6 +117,8 @@ export default function AIWorkspace({ items, onOrderAdded, onOpenOrder }: { item
         {mode === "extract" && !assets.length && <p className="ai-hint">No lead or order assets are available yet. Upload one from a lead or order first.</p>}
         {assetError && mode === "extract" && <p className="ai-error" role="alert">{assetError}</p>}
         <label>{mode === "extract" ? "Question or focus (optional)" : mode === "order" ? "Order summary" : "Request"}<textarea value={prompt} onChange={event => setPrompt(event.target.value)} required={mode !== "extract"} maxLength={mode === "order" ? 3000 : 2000} rows={mode === "order" ? 6 : 5} placeholder={prompts[mode]}/></label>
+        <div className="ai-voice-row"><button type="button" className={listening ? "ai-voice-button listening" : "ai-voice-button"} onClick={listening ? stopListening : startListening} disabled={busy || !speechAvailable} aria-pressed={listening} aria-label={listening ? "Stop voice input" : "Start voice input"}>{listening ? <MicOff size={17}/> : <Mic size={17}/>} {listening ? "Stop listening" : "Use voice input"}</button><span role="status">{listening ? "Listening… Speak now. Your words will appear above." : speechAvailable ? "Pomaa will add your words above for review." : "Voice input is unavailable in this browser."}</span></div>
+        {speechError && <p className="ai-error" role="alert">{speechError}</p>}
         {mode === "order" && <p className="ai-hint">Selecting Add order saves it immediately. Missing prices are saved as 0.00 and can be edited in Orders.</p>}
         {mode === "ask" && <p className="ai-hint">Answers use the latest saved records and financial totals. Check important details against the source records.</p>}
         {mode === "draft" && <p className="ai-hint">Drafts are for your review; nothing is sent to a customer.</p>}
