@@ -202,21 +202,33 @@ function WorkTable({ items, allItems, vendors, deliverables, onDeliverablesChang
 }
 
 function FinanceSummary({ items }: { items: Item[] }) {
-  const projects = items.filter(item => item.kind === "project" || item.kind === "booking");
-  const currencies = [...new Set([...projects.map(item => item.currency || "GHS"), ...items.filter(item => item.kind === "finance").map(item => item.currency || "GHS")])].sort();
-  return <div className="finance-summary" aria-label="Financial summary"><div className="finance-heading"><h3>Financial summary</h3><p>Order forecasts use price and budgeted cost. Recorded totals use completed finance entries.</p></div>{currencies.length ? currencies.map(currency => {
-    const figures = financialSummary(items, currency);
-    return <div className="finance-currency" key={currency}><strong>{currency}</strong><div className="finance-metrics"><div><span>Order price total</span><b>{money(figures.price, currency)}</b></div><div><span>Budgeted order costs</span><b>{money(figures.cost, currency)}</b></div><div><span>Projected profit</span><b>{money(figures.projectedProfit, currency)}</b></div><div><span>Recorded revenue</span><b>{money(figures.revenue, currency)}</b></div><div><span>Recorded expenses</span><b>{money(figures.expenses, currency)}</b></div><div><span>Recorded net</span><b>{money(figures.revenue - figures.expenses, currency)}</b></div></div><p>Pending: {money(figures.pendingIncome, currency)} income · {money(figures.pendingExpenses, currency)} expenses. Recorded totals include order-linked and general entries.</p></div>;
-  }) : <p>No orders or finance entries yet.</p>}</div>;
+  const orders = items.filter(item => item.kind === "project" || item.kind === "booking");
+  const entries = items.filter(item => item.kind === "finance");
+  const currencies = [...new Set([...orders, ...entries].map(item => item.currency || "GHS"))].sort();
+  return <div className="finance-summary" aria-label="Financial summary">
+    <div className="finance-heading"><h3>Financial summary</h3><p>Revenue is the total order price. Expenses are budgeted order costs. Profit is revenue minus expenses.</p></div>
+    {currencies.length ? currencies.map(currency => {
+      const figures = financialSummary(items, currency);
+      return <div className="finance-currency" key={currency}>
+        <strong>{currency}</strong>
+        <div className="finance-metrics"><div><span>Revenue</span><b>{money(figures.revenue, currency)}</b></div><div><span>Expenses</span><b>{money(figures.expenses, currency)}</b></div><div><span>Profit</span><b>{money(figures.profit, currency)}</b></div></div>
+        {figures.entryCount > 0 && <p className="finance-pending">Payment entries: {money(figures.received, currency)} received · {money(figures.paid, currency)} paid · {money(figures.pendingIncome, currency)} pending income · {money(figures.pendingExpenses, currency)} pending expenses. Payment entries track cash movement separately.</p>}
+      </div>;
+    }) : <p>No orders or finance entries yet.</p>}
+  </div>;
 }
 
 function ProjectFinancialPanel({ project, items, onAddFinance, onEditFinance }: { project: Item; items: Item[]; onAddFinance: () => void; onEditFinance: (item: Item) => void }) {
   const currency = project.currency || "GHS";
   const linked = items.filter(item => item.kind === "finance" && item.project_id === project.id);
-  const figures = totals(linked);
-  const price = cents(project.price);
-  const cost = cents(project.cost);
-  return <section className="project-financials"><div className="finance-heading"><div><h3>Order finances</h3><p>Price and budgeted cost are forecasts; linked entries record actual income and costs.</p></div><button type="button" className="outline-button" onClick={onAddFinance}><Plus size={16}/> Add entry</button></div><div className="finance-metrics"><div><span>Order price</span><b>{money(price, currency)}</b></div><div><span>Budgeted cost</span><b>{money(cost, currency)}</b></div><div><span>Projected profit</span><b>{money(price - cost, currency)}</b></div><div><span>Recorded revenue</span><b>{money(figures.revenue, currency)}</b></div><div><span>Recorded expenses</span><b>{money(figures.expenses, currency)}</b></div><div><span>Recorded net</span><b>{money(figures.revenue - figures.expenses, currency)}</b></div><div><span>Revenue remaining</span><b>{money(price - figures.revenue, currency)}</b></div></div><p className="finance-pending">Pending entries: {money(figures.pendingIncome, currency)} income · {money(figures.pendingExpenses, currency)} expenses</p>{linked.length ? <ul className="finance-entry-list">{linked.map(entry => <li key={entry.id}><span><strong>{entry.title}</strong><small>{entry.direction} · {entry.status}{entry.due_date ? ` · ${entry.due_date}` : ""}</small></span><b>{money(cents(entry.amount), currency)}</b><button type="button" className="icon-button" onClick={() => onEditFinance(entry)} aria-label={`Edit ${entry.title}`}><Pencil size={15}/></button></li>)}</ul> : <p className="finance-pending">No finance entries linked yet.</p>}</section>;
+  const payments = totals(linked);
+  const revenue = cents(project.price);
+  const expenses = cents(project.cost);
+  return <section className="project-financials">
+    <div className="finance-heading"><div><h3>Order finances</h3><p>Revenue is the order price. Expenses are the budgeted cost. Profit is the difference.</p></div><button type="button" className="outline-button" onClick={onAddFinance}><Plus size={16}/> Add entry</button></div>
+    <div className="finance-metrics"><div><span>Revenue</span><b>{money(revenue, currency)}</b></div><div><span>Expenses</span><b>{money(expenses, currency)}</b></div><div><span>Profit</span><b>{money(revenue - expenses, currency)}</b></div></div>
+    {linked.length > 0 ? <><p className="finance-pending">Payment entries: {money(payments.revenue, currency)} received · {money(payments.expenses, currency)} paid · {money(payments.pendingIncome, currency)} pending income · {money(payments.pendingExpenses, currency)} pending expenses</p><ul className="finance-entry-list">{linked.map(entry => <li key={entry.id}><span><strong>{entry.title}</strong><small>{entry.direction} · {entry.status}{entry.due_date ? ` · ${entry.due_date}` : ""}</small></span><b>{money(cents(entry.amount), currency)}</b><button type="button" className="icon-button" onClick={() => onEditFinance(entry)} aria-label={`Edit ${entry.title}`}><Pencil size={15}/></button></li>)}</ul></> : <p className="finance-pending">No payment entries linked yet.</p>}
+  </section>;
 }
 
 function WorkAssetsPanel({ kind, records, selectedId }: { kind: "lead" | "project" | "booking"; records: Item[]; selectedId: string | null }) {

@@ -33,11 +33,11 @@ export default function OverviewPanels({ items, deliverables, loading, onOpenCal
   const months = Array.from({ length: 6 }, (_, index) => new Date(new Date().getFullYear(), new Date().getMonth() - 5 + index, 1));
   const monthly = months.map(date => {
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const entries = items.filter(item => item.kind === "finance" && item.status === "Completed" && (item.currency || "GHS") === currency && (item.due_date || dateKey(new Date(item.created_at))).startsWith(key));
-    return { key, label: date.toLocaleDateString(undefined, { month: "short" }), income: entries.filter(item => item.direction === "Income").reduce((sum, item) => sum + cents(item.amount), 0), expenses: entries.filter(item => item.direction === "Expense").reduce((sum, item) => sum + cents(item.amount), 0) };
+    const ordersInMonth = orders.filter(item => (item.currency || "GHS") === currency && dateKey(new Date(item.created_at)).startsWith(key));
+    return { key, label: date.toLocaleDateString(undefined, { month: "short" }), count: ordersInMonth.length, income: ordersInMonth.reduce((sum, item) => sum + cents(item.price), 0), expenses: ordersInMonth.reduce((sum, item) => sum + cents(item.cost), 0) };
   });
   const ceiling = Math.max(1, ...monthly.flatMap(row => [row.income, row.expenses]));
-  const hasChartData = monthly.some(row => row.income || row.expenses);
+  const hasChartData = monthly.some(row => row.count > 0);
 
   return <div className="overview-panels">
     <section className="overview-panel overview-calendar"><div className="overview-panel-head"><div><span className="section-number">SCHEDULE / AT A GLANCE</span><h2>{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2></div><div className="overview-month-controls"><button aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><ChevronLeft size={18}/></button><button aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><ChevronRight size={18}/></button></div></div><div className="overview-mini-calendar" aria-label={`Dates in ${month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}`}>{weekdays.map((day, index) => <span className="overview-weekday" key={index}>{day}</span>)}{days.map(day => { const key = dateKey(day); const count = eventsByDay.get(key) || 0; return <button key={key} className={`${day.getMonth() !== month.getMonth() ? "outside" : ""} ${key === today ? "today" : ""}`} aria-label={`${day.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}: ${count} scheduled item${count === 1 ? "" : "s"}`} onClick={() => onOpenCalendar(key)}>{day.getDate()}{count > 0 && <i aria-hidden="true"/>}</button>; })}</div><button className="overview-panel-link" onClick={() => onOpenCalendar(today)}>Open full calendar <ArrowRight size={16}/></button></section>
@@ -46,18 +46,16 @@ export default function OverviewPanels({ items, deliverables, loading, onOpenCal
       <div className="overview-panel-head"><div><span className="section-number">FINANCES / ALL TIME</span><h2>Financial snapshot</h2></div>{currencies.length > 1 && <label className="overview-currency">Currency <select value={currency} onChange={event => setCurrencyChoice(event.target.value)}>{currencies.map(code => <option key={code}>{code}</option>)}</select></label>}</div>
       {loading ? <p className="overview-empty">Loading financials…</p> : currencies.length ? <>
         <div className="overview-finance-metrics" aria-label={`Financial totals in ${currency}`}>
-          <div><span>Order price total</span><strong>{money(finance.price, currency)}</strong></div>
-          <div><span>Budgeted order costs</span><strong>{money(finance.cost, currency)}</strong></div>
-          <div><span>Projected profit</span><strong>{money(finance.projectedProfit, currency)}</strong></div>
-          <div><span>Recorded revenue</span><strong>{money(finance.revenue, currency)}</strong></div>
-          <div><span>Recorded expenses</span><strong>{money(finance.expenses, currency)}</strong></div>
-          <div><span>Recorded net</span><strong>{money(finance.revenue - finance.expenses, currency)}</strong></div>
+          <div><span>Revenue</span><strong>{money(finance.revenue, currency)}</strong></div>
+          <div><span>Expenses</span><strong>{money(finance.expenses, currency)}</strong></div>
+          <div><span>Profit</span><strong>{money(finance.profit, currency)}</strong></div>
         </div>
-        <p className="overview-caption">Pending: {money(finance.pendingIncome, currency)} income · {money(finance.pendingExpenses, currency)} expenses</p>
-        <p className="overview-caption overview-chart-caption">Completed income and expenses · last 6 months · {currency}</p>
-        {hasChartData ? <><div className="overview-chart" role="img" aria-label={`Monthly completed income and expenses in ${currency}. ${monthly.map(row => `${row.label}: income ${money(row.income, currency)}, expenses ${money(row.expenses, currency)}`).join("; ")}`}>
-          {monthly.map(row => <div className="overview-month" key={row.key}><div className="overview-bar-pair"><div className="overview-bar income" style={{height: `${row.income ? Math.max(4, row.income / ceiling * 100) : 0}%`}} title={`${row.label} income: ${money(row.income, currency)}`}/><div className="overview-bar expense" style={{height: `${row.expenses ? Math.max(4, row.expenses / ceiling * 100) : 0}%`}} title={`${row.label} expenses: ${money(row.expenses, currency)}`}/></div><span>{row.label}</span></div>)}
-        </div><div className="overview-chart-legend"><span><i className="income"/> Revenue</span><span><i className="expense"/> Expenses</span></div></> : <p className="overview-empty">No completed entries in the last six months. All-time totals appear above.</p>}
+        <p className="overview-caption">Revenue is the total order price. Expenses are budgeted order costs. Profit is the difference.</p>
+        {finance.entryCount > 0 && <p className="overview-caption overview-payment-caption">Payment entries: {money(finance.received, currency)} received · {money(finance.paid, currency)} paid · {money(finance.pendingIncome, currency)} pending income · {money(finance.pendingExpenses, currency)} pending expenses</p>}
+        <p className="overview-caption overview-chart-caption">Order revenue and costs · orders added in the last 6 months · {currency}</p>
+        {hasChartData ? <><div className="overview-chart" role="img" aria-label={`Monthly order revenue and costs in ${currency}. ${monthly.map(row => `${row.label}: revenue ${money(row.income, currency)}, costs ${money(row.expenses, currency)}`).join("; ")}`}>
+          {monthly.map(row => <div className="overview-month" key={row.key}><div className="overview-bar-pair"><div className="overview-bar income" style={{height: `${row.income ? Math.max(4, row.income / ceiling * 100) : 0}%`}} title={`${row.label} revenue: ${money(row.income, currency)}`}/><div className="overview-bar expense" style={{height: `${row.expenses ? Math.max(4, row.expenses / ceiling * 100) : 0}%`}} title={`${row.label} costs: ${money(row.expenses, currency)}`}/></div><span>{row.label}</span></div>)}
+        </div><div className="overview-chart-legend"><span><i className="income"/> Revenue</span><span><i className="expense"/> Expenses</span></div></> : <p className="overview-empty">No orders added in the last six months. All-time totals appear above.</p>}
       </> : <p className="overview-empty">Add an order or finance entry to see financial totals here.</p>}
       <button className="overview-panel-link" onClick={onOpenFinance}>View finances <ArrowRight size={16}/></button>
     </section>

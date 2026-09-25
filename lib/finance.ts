@@ -29,7 +29,17 @@ export function totals(records: FinanceRecord[]) {
 export function financialSummary(records: FinanceRecord[], currency: string) {
   const inCurrency = records.filter(record => (record.currency || "GHS") === currency);
   const orders = inCurrency.filter(record => record.kind === "project" || record.kind === "booking");
-  const price = orders.reduce((sum, order) => sum + cents(order.price), 0);
-  const cost = orders.reduce((sum, order) => sum + cents(order.cost), 0);
-  return { price, cost, projectedProfit: price - cost, ...totals(inCurrency) };
+  const revenue = orders.reduce((sum, order) => sum + cents(order.price), 0);
+  const expenses = orders.reduce((sum, order) => sum + cents(order.cost), 0);
+  const payments = totals(inCurrency);
+  return {
+    revenue,
+    expenses,
+    profit: revenue - expenses,
+    received: payments.revenue,
+    paid: payments.expenses,
+    pendingIncome: payments.pendingIncome,
+    pendingExpenses: payments.pendingExpenses,
+    entryCount: inCurrency.filter(record => record.kind === "finance").length,
+  };
 }
