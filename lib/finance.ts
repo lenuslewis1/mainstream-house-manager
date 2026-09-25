@@ -29,17 +29,27 @@ export function totals(records: FinanceRecord[]) {
 export function financialSummary(records: FinanceRecord[], currency: string) {
   const inCurrency = records.filter(record => (record.currency || "GHS") === currency);
   const orders = inCurrency.filter(record => record.kind === "project" || record.kind === "booking");
-  const revenue = orders.reduce((sum, order) => sum + cents(order.price), 0);
-  const expenses = orders.reduce((sum, order) => sum + cents(order.cost), 0);
-  const payments = totals(inCurrency);
+  const entries = inCurrency.filter(record => record.kind === "finance");
+  const general = totals(entries.filter(record => !record.project_id));
+  const linkedPayments = totals(entries.filter(record => record.project_id));
+  const pending = totals(entries);
+  const orderRevenue = orders.reduce((sum, order) => sum + cents(order.price), 0);
+  const orderExpenses = orders.reduce((sum, order) => sum + cents(order.cost), 0);
+  const revenue = orderRevenue + general.revenue;
+  const expenses = orderExpenses + general.expenses;
   return {
     revenue,
     expenses,
     profit: revenue - expenses,
-    received: payments.revenue,
-    paid: payments.expenses,
-    pendingIncome: payments.pendingIncome,
-    pendingExpenses: payments.pendingExpenses,
-    entryCount: inCurrency.filter(record => record.kind === "finance").length,
+    orderRevenue,
+    orderExpenses,
+    generalIncome: general.revenue,
+    generalExpenses: general.expenses,
+    received: linkedPayments.revenue,
+    paid: linkedPayments.expenses,
+    pendingIncome: pending.pendingIncome,
+    pendingExpenses: pending.pendingExpenses,
+    entryCount: entries.length,
+    linkedEntryCount: entries.filter(record => record.project_id).length,
   };
 }

@@ -211,13 +211,15 @@ function FinanceSummary({ items }: { items: Item[] }) {
   const entries = items.filter(item => item.kind === "finance");
   const currencies = [...new Set([...orders, ...entries].map(item => item.currency || "GHS"))].sort();
   return <div className="finance-summary" aria-label="Financial summary">
-    <div className="finance-heading"><h3>Financial summary</h3><p>Revenue is the total order price. Expenses are budgeted order costs. Profit is revenue minus expenses.</p></div>
+    <div className="finance-heading"><h3>Financial summary</h3><p>Revenue includes order prices and completed general income. Expenses include order costs and completed general expenses. Profit is the difference.</p></div>
     {currencies.length ? currencies.map(currency => {
       const figures = financialSummary(items, currency);
       return <div className="finance-currency" key={currency}>
         <strong>{currency}</strong>
         <div className="finance-metrics"><div><span>Revenue</span><b>{money(figures.revenue, currency)}</b></div><div><span>Expenses</span><b>{money(figures.expenses, currency)}</b></div><div><span>Profit</span><b>{money(figures.profit, currency)}</b></div></div>
-        {figures.entryCount > 0 && <p className="finance-pending">Payment entries: {money(figures.received, currency)} received · {money(figures.paid, currency)} paid · {money(figures.pendingIncome, currency)} pending income · {money(figures.pendingExpenses, currency)} pending expenses. Payment entries track cash movement separately.</p>}
+        {(figures.generalIncome > 0 || figures.generalExpenses > 0) && <p className="finance-pending">Included from general records: {money(figures.generalIncome, currency)} income · {money(figures.generalExpenses, currency)} expenses.</p>}
+        {figures.linkedEntryCount > 0 && <p className="finance-pending">Order payments: {money(figures.received, currency)} received · {money(figures.paid, currency)} paid. These track payments against order totals.</p>}
+        {figures.entryCount > 0 && (figures.pendingIncome > 0 || figures.pendingExpenses > 0) && <p className="finance-pending">Pending: {money(figures.pendingIncome, currency)} income · {money(figures.pendingExpenses, currency)} expenses. Pending records are excluded from totals.</p>}
       </div>;
     }) : <p>No orders or finance entries yet.</p>}
   </div>;
