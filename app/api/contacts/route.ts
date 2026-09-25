@@ -11,7 +11,7 @@ export function parseContact(input: Record<string, unknown>) {
   const email = String(input.email ?? "").trim();
   const specialty = String(input.specialty ?? "").trim();
   const notes = String(input.notes ?? "").trim();
-  if (!["customer", "partner"].includes(kind) || !name || name.length > 160 || contactPerson.length > 160 || phone.length > 60 || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || specialty.length > 160 || notes.length > 4000) return null;
+  if (!["customer", "partner"].includes(kind) || !name || name.length > 160 || contactPerson.length > 160 || phone.length > 60 || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || specialty.length > (kind === "partner" ? 4000 : 160) || notes.length > 4000) return null;
   return { kind, name, contactPerson, phone, email, specialty, notes };
 }
 
