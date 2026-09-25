@@ -107,11 +107,7 @@ export default function Workspace() {
     (section === "overview" || item.kind === section || (section === "order" && (item.kind === "project" || item.kind === "booking"))) &&
     (!query || [item.title, item.client, item.service, item.status, item.notes].join(" ").toLowerCase().includes(query.toLowerCase()))
   ), [items, section, query]);
-  const counts = {
-    leads: items.filter(item => item.kind === "lead" && !["Won", "Lost"].includes(item.status)).length,
-    bookings: items.filter(item => item.kind === "booking" && !["Completed", "Cancelled"].includes(item.status)).length,
-    finances: items.filter(item => item.kind === "finance").length,
-  };
+  const openLeads = items.filter(item => item.kind === "lead" && !["Won", "Lost"].includes(item.status)).length;
   const convertedLeadIds = useMemo(() => new Set(items.filter(item => item.kind === "project" && item.source_lead_id).map(item => item.source_lead_id)), [items]);
   async function convertLead(item: Item) {
     if (!window.confirm(`Create an order from “${item.title}” and mark the lead Won?`)) return;
@@ -144,7 +140,7 @@ export default function Workspace() {
     <aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
       <div className="brand"><img src="/mainstream-house-logo.svg" alt="Mainstream House" /></div>
       <div className="side-caption">WORKSPACE</div>
-      <nav className="navigation" aria-label="Main navigation">{nav.map(link => <button key={link.key} className={section === link.key ? "nav-link active" : "nav-link"} onClick={() => { setSection(link.key); setMobileNav(false); }}><link.icon size={18} strokeWidth={1.8}/><span>{link.label}</span>{link.key === "lead" && counts.leads > 0 ? <em>{counts.leads}</em> : null}</button>)}</nav>
+      <nav className="navigation" aria-label="Main navigation">{nav.map(link => <button key={link.key} className={section === link.key ? "nav-link active" : "nav-link"} onClick={() => { setSection(link.key); setMobileNav(false); }}><link.icon size={18} strokeWidth={1.8}/><span>{link.label}</span>{link.key === "lead" && openLeads > 0 ? <em>{openLeads}</em> : null}</button>)}</nav>
       <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={17}/><div><strong>Keep work together</strong><p>Track enquiries, orders, vendors, and money.</p></div></div><div className="side-footer">MAINSTREAM HOUSE <span>© 2026</span></div></div>
     </aside>
     <main className="main">
@@ -152,7 +148,6 @@ export default function Workspace() {
       <div className="content">
         {section !== "overview" && <div className="intro"><div><div className="eyebrow"><span className="eyebrow-line"/> MAINSTREAM HOUSE / OPERATIONS</div><h1>{title}</h1><p>{section === "lead" ? "Follow each enquiry from first contact to decision." : section === "order" ? "Manage delivery orders and scheduled bookings together." : section === "calendar" ? "See upcoming due dates, order milestones, and delivery progress." : section === "task" ? "Stay on top of the work that needs attention." : section === "customer" ? "Keep your customer details in one place." : section === "partner" ? "Keep printing and fulfillment vendors close at hand." : "Record income and expenses for the team to review."}</p></div>{section !== "customer" && section !== "partner" && section !== "calendar" && <button className="primary-button" onClick={() => setDialog(newKind)}><Plus size={18}/> New {labels[newKind].toLowerCase()} <ArrowRight size={18}/></button>}</div>}
         {section === "overview" && <OverviewPanels items={items} deliverables={deliverables} loading={loading || calendarLoading} onOpenCalendar={date => { setCalendarFocusDate(date); setSection("calendar"); }} onOpenItem={(kind, id) => { setQuery(""); setSection(kind === "project" || kind === "booking" ? "order" : kind); setExpandItemId(id); }} onOpenFinance={() => setSection("finance")} onOpenProjects={() => setSection("order")}/>}
-        {section === "overview" && <div className="quick-row"><button onClick={() => setSection("order")}><CalendarDays size={18}/><span><strong>{counts.bookings} open bookings</strong><small>View in Orders</small></span><ArrowRight size={17}/></button><button onClick={() => setSection("finance")}><Wallet size={18}/><span><strong>{counts.finances} finance entries</strong><small>View income and expenses</small></span><ArrowRight size={17}/></button></div>}
         {(section === "customer" || section === "partner") ? <ContactsPanel key={section} kind={section} /> : section === "calendar" ? <CalendarView key={calendarFocusDate || "default"} initialDate={calendarFocusDate || undefined} items={items} deliverables={deliverables} loading={loading || calendarLoading} error={error || calendarError} onRetry={() => { void reload(); void reloadDeliverables(); }} onOpenItem={(kind, id) => { setQuery(""); setSection(kind === "project" || kind === "booking" ? "order" : kind); setExpandItemId(id); }} /> : <><section className="records"><div className="records-head"><div><span className="section-number">01 / YOUR WORK</span><h2>{section === "overview" ? "Recent activity" : `All ${title.toLowerCase()}`}</h2></div><div className="records-actions"><label className="search"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search work" aria-label="Search work"/></label>{section === "order" && <button className="outline-button" onClick={() => setDialog("booking")}><Plus size={17}/> Add booking</button>}<button className="outline-button" onClick={() => setDialog(section === "overview" || section === "order" ? "project" : newKind)}><Plus size={17}/> Add {section === "overview" ? "order" : labels[newKind].toLowerCase()}</button></div></div>
           {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Try again</button></div>}
           {section === "finance" && !loading && <FinanceSummary items={items} />}
