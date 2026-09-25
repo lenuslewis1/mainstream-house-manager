@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SiteAlertProvider } from "./site-alert";
 
 export const metadata: Metadata = {
   title: "Mainstream House Manager",
@@ -20,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased"><SiteAlertProvider>{children}</SiteAlertProvider></body>
     </html>
   );
 }

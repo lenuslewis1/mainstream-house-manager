@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { CalendarItem, Deliverable } from "../lib/calendar-types";
+import { AlertMessage } from "./site-alert";
 
 type CalendarEvent = { id: string; date: string; title: string; kind: "lead" | "project" | "task" | "booking" | "deliverable"; status: string; projectTitle?: string; projectStatus?: string; client?: string; service?: string; notes?: string; targetKind: "lead" | "project" | "task" | "booking"; targetId: string };
 const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -33,7 +34,7 @@ export default function CalendarView({ items, deliverables, loading, error, init
   const open = (event: CalendarEvent) => setPreview(event);
   return <div className="calendar-layout">
     <section className="calendar-card" aria-label="Calendar month"><div className="calendar-toolbar"><div><span className="section-number">SCHEDULE / MONTH VIEW</span><h2>{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2></div><div className="calendar-controls"><button onClick={() => { const now = new Date(); setMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelectedDate(dateKey(now)); }}>Today</button><button aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><ChevronLeft size={18}/></button><button aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><ChevronRight size={18}/></button></div></div>
-      {error && <div className="error" role="alert">{error} <button onClick={onRetry}>Try again</button></div>}
+      {error && <AlertMessage message={error} onRetry={onRetry}/>}
       <div className="calendar-grid" role="grid" aria-label={month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}>{weekdays.map(day => <div className="calendar-weekday" key={day} role="columnheader">{day}</div>)}{days.map(day => { const key = dateKey(day); const dayEvents = byDate.get(key) || []; return <div key={key} className={`calendar-day ${day.getMonth() !== month.getMonth() ? "outside" : ""} ${key === today ? "today" : ""} ${key === selectedDate ? "selected" : ""}`} role="gridcell" aria-label={readableDate(key)}><button className="calendar-date" onClick={() => setSelectedDate(key)} aria-label={`Show ${readableDate(key)} events`} aria-pressed={key === selectedDate}>{day.getDate()}</button><div className="calendar-day-events">{dayEvents.slice(0, 2).map(event => <button key={event.id} className={`calendar-chip calendar-${event.kind}`} onClick={() => { setSelectedDate(key); open(event); }} title={`${event.title} · ${event.status}`}>{event.title}</button>)}{dayEvents.length > 2 && <button className="calendar-more" onClick={() => setSelectedDate(key)}>+{dayEvents.length - 2} more</button>}</div></div>; })}</div>
       <div className="calendar-legend"><span><i className="legend-project"/> Order</span><span><i className="legend-deliverable"/> Deliverable</span><span><i className="legend-task"/> Task</span><span><i className="legend-booking"/> Booking</span><span><i className="legend-lead"/> Lead</span></div>
     </section>

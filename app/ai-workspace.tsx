@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ClipboardList, Copy, FileSearch, MessageCircle, Mic, MicOff, Send, Sparkles, WandSparkles } from "lucide-react";
+import { AlertMessage } from "./site-alert";
 
 type Mode = "order" | "ask" | "draft" | "extract";
 type Item = { id: string; kind: string; title: string; client: string };
@@ -115,15 +116,15 @@ export default function AIWorkspace({ items, onOrderAdded, onOpenOrder }: { item
         {mode === "draft" && <div className="ai-fields"><label>Format<select value={draftType} onChange={event => setDraftType(event.target.value)}><option value="customer_message">Customer message</option><option value="proposal">Proposal</option></select></label><label>Related record<select value={recordId} onChange={event => setRecordId(event.target.value)}><option value="">No record selected</option>{items.filter(item => ["lead", "project", "booking"].includes(item.kind)).map(item => <option key={item.id} value={item.id}>{item.title}{item.client ? ` · ${item.client}` : ""}</option>)}</select></label></div>}
         {mode === "extract" && <label>Uploaded asset<select value={assetId} onChange={event => setAssetId(event.target.value)} required><option value="">Select a file</option>{assets.map(asset => <option key={`${asset.kind}-${asset.id}`} value={asset.id}>{asset.file_name} · {asset.parent_title} ({asset.kind})</option>)}</select></label>}
         {mode === "extract" && !assets.length && <p className="ai-hint">No lead or order assets are available yet. Upload one from a lead or order first.</p>}
-        {assetError && mode === "extract" && <p className="ai-error" role="alert">{assetError}</p>}
+        {assetError && mode === "extract" && <AlertMessage message={assetError}/>}
         <label>{mode === "extract" ? "Question or focus (optional)" : mode === "order" ? "Order summary" : "Request"}<textarea value={prompt} onChange={event => setPrompt(event.target.value)} required={mode !== "extract"} maxLength={mode === "order" ? 3000 : 2000} rows={mode === "order" ? 6 : 5} placeholder={prompts[mode]}/></label>
         <div className="ai-voice-row"><button type="button" className={listening ? "ai-voice-button listening" : "ai-voice-button"} onClick={listening ? stopListening : startListening} disabled={busy || !speechAvailable} aria-pressed={listening} aria-label={listening ? "Stop voice input" : "Start voice input"}>{listening ? <MicOff size={17}/> : <Mic size={17}/>} {listening ? "Stop listening" : "Use voice input"}</button><span role="status">{listening ? "Listening… Speak now. Your words will appear above." : speechAvailable ? "Pomaa will add your words above for review." : "Voice input is unavailable in this browser."}</span></div>
-        {speechError && <p className="ai-error" role="alert">{speechError}</p>}
+        {speechError && <AlertMessage message={speechError}/>}
         {mode === "order" && <p className="ai-hint">Selecting Add order saves it immediately. Missing prices are saved as 0.00 and can be edited in Orders.</p>}
         {mode === "ask" && <p className="ai-hint">Answers use the latest saved records and financial totals. Check important details against the source records.</p>}
         {mode === "draft" && <p className="ai-hint">Drafts are for your review; nothing is sent to a customer.</p>}
         {mode === "extract" && <p className="ai-hint">Images, PDF, Word, spreadsheets, presentations, and text files up to 10 MB are supported.</p>}
-        {error && <p className="ai-error" role="alert">{error}</p>}
+        {error && <AlertMessage message={error}/>}
         <button className="primary-button ai-submit" type="submit" disabled={busy || (mode === "extract" && !assetId)}>{busy ? "Working…" : mode === "order" ? "Add order" : mode === "ask" ? "Get answer" : mode === "draft" ? "Create draft" : "Extract details"}<Send size={16}/></button>
       </form>
     </div>

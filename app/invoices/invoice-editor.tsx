@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Plus, Printer, Save, Trash2 } from "lucide-react";
 import { invoiceNumber, invoiceTotal, parseInvoiceLines, type InvoiceLine, type InvoiceRecord } from "../../lib/invoice";
 import { money } from "../../lib/finance";
+import { AlertMessage } from "../site-alert";
 
 type Draft = Pick<InvoiceRecord, "issue_date" | "due_date" | "bill_to_name" | "bill_to_details" | "line_items" | "payment_details">;
 
@@ -69,7 +70,7 @@ export default function InvoiceEditor({ id }: { id: string }) {
   if (!invoice || !draft) return <div className="invoice-loading"><a href="/">← Back to workspace</a><p>{error || "Loading invoice…"}</p></div>;
   return <main className="invoice-page">
     <header className="invoice-toolbar"><a href="/"><ArrowLeft size={17}/> Back to workspace</a><div><span className="invoice-save-state">{saved ? "Saved" : "Unsaved changes"}</span><button type="button" disabled={saving} onClick={() => void save()}><Save size={16}/> Save</button><button type="button" disabled={saving} className="invoice-print-button" onClick={() => void print()}><Printer size={16}/> Print / Save PDF</button></div></header>
-    {error && <p className="invoice-error" role="alert">{error}</p>}
+    {error && <AlertMessage message={error}/>}
     <div className="invoice-workarea">
       <section className="invoice-controls" aria-label="Invoice details"><div className="invoice-controls-heading"><span>INVOICE {invoiceNumber(invoice)}</span><h2>Edit invoice</h2><p>Created from your order. Review the details, save, then print or save as PDF.</p></div>
         <label>Customer name<input value={draft.bill_to_name} onChange={event => change("bill_to_name", event.target.value)} maxLength={160}/></label>
