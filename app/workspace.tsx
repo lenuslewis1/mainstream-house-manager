@@ -15,7 +15,7 @@ type ContactKind = "customer" | "partner";
 type Section = "overview" | "calendar" | "order" | Kind | ContactKind;
 type Item = { id: string; kind: Kind; title: string; client: string; service: string; status: string; due_date: string; notes: string; amount: string; currency: string; direction: string; price: string; cost: string; project_id: string | null; vendor_id: string | null; source_lead_id: string | null; created_at: number; updated_at: number };
 type LeadAsset = { id: string; file_name: string; content_type: string; size_bytes: number; uploaded_at: number; uploaded_by: string };
-type Contact = { id: string; kind: ContactKind; name: string; contact_person: string; phone: string; email: string; specialty: string; notes: string; created_at: number; updated_at: number };
+type Contact = { id: string; kind: ContactKind; name: string; contact_person: string; phone: string; email: string; specialty: string; location: string; notes: string; created_at: number; updated_at: number };
 const statuses: Record<Kind, string[]> = {
   lead: ["New", "Contacted", "Proposal sent", "Won", "Lost"],
   project: ["Planning", "In progress", "In review", "Delivered", "On hold"],
@@ -331,10 +331,10 @@ function ContactsPanel({ kind }: { kind: ContactKind }) {
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not delete contact."); }
     finally { setBusyId(""); }
   }
-  const visible = contacts.filter(contact => !query || [contact.name, contact.contact_person, contact.phone, contact.email, contact.specialty, contact.notes].join(" ").toLowerCase().includes(query.toLowerCase()));
+  const visible = contacts.filter(contact => !query || [contact.name, contact.contact_person, contact.phone, contact.email, contact.specialty, contact.location, contact.notes].join(" ").toLowerCase().includes(query.toLowerCase()));
   return <section className="records"><div className="records-head"><div><span className="section-number">01 / YOUR {noun.toUpperCase()}S</span><h2>{kind === "customer" ? "Customer directory" : "Vendor directory"}</h2></div><div className="records-actions"><label className="search"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder={`Search ${noun}s`} aria-label={`Search ${noun}s`}/></label><button className="outline-button" onClick={() => setDialog("new")}><Plus size={17}/> Add {noun}</button></div></div>
     {error && <div className="error" role="alert">{error} <button onClick={() => void reload()}>Try again</button></div>}
-    {loading ? <div className="empty">Loading {noun}s…</div> : visible.length ? <div className="table-wrap"><table><thead><tr><th>NAME</th><th>CONTACT</th><th>PHONE / EMAIL</th><th>{kind === "partner" ? "SERVICES" : "DETAILS"}</th><th>ACTION</th></tr></thead><tbody>{visible.map(contact => <tr key={contact.id}><td><div className="item-title">{contact.name}</div>{contact.notes && <div className="item-kind" title={contact.notes}>{contact.notes}</div>}</td><td>{contact.contact_person || <span className="muted">—</span>}</td><td><div className="contact-links">{contact.phone && <a href={`tel:${contact.phone}`}>{contact.phone}</a>}{contact.email && <a href={`mailto:${contact.email}`}>{contact.email}</a>}{!contact.phone && !contact.email && <span className="muted">—</span>}</div></td><td>{(kind === "partner" ? displayVendorServices(contact.specialty) : contact.specialty) || <span className="muted">—</span>}</td><td><div className="row-actions"><button className="icon-button" onClick={() => setDialog(contact)} aria-label={`Edit ${contact.name}`} title="Edit"><Pencil size={16}/></button><button className="delete-button" disabled={busyId === contact.id} onClick={() => void remove(contact)} aria-label={`Delete ${contact.name}`}><X size={16}/></button></div></td></tr>)}</tbody></table></div> : <div className="empty"><span className="empty-symbol">{kind === "customer" ? <UserRound size={23}/> : <Handshake size={23}/>}</span><h3>{query ? "No matching contacts" : `No ${noun}s saved yet`}</h3><p>{query ? "Try another search term." : `Save your first ${noun} to keep their details handy.`}</p>{!query && <button onClick={() => setDialog("new")}><Plus size={16}/> Add {noun}</button>}</div>}
+    {loading ? <div className="empty">Loading {noun}s…</div> : visible.length ? <div className="table-wrap"><table><thead><tr><th>NAME</th><th>CONTACT</th><th>PHONE / EMAIL</th><th>{kind === "partner" ? "SERVICES" : "DETAILS"}</th>{kind === "partner" && <th>LOCATION</th>}<th>ACTION</th></tr></thead><tbody>{visible.map(contact => <tr key={contact.id}><td><div className="item-title">{contact.name}</div>{contact.notes && <div className="item-kind" title={contact.notes}>{contact.notes}</div>}</td><td>{contact.contact_person || <span className="muted">—</span>}</td><td><div className="contact-links">{contact.phone && <a href={`tel:${contact.phone}`}>{contact.phone}</a>}{contact.email && <a href={`mailto:${contact.email}`}>{contact.email}</a>}{!contact.phone && !contact.email && <span className="muted">—</span>}</div></td><td>{(kind === "partner" ? displayVendorServices(contact.specialty) : contact.specialty) || <span className="muted">—</span>}</td>{kind === "partner" && <td>{contact.location || <span className="muted">—</span>}</td>}<td><div className="row-actions"><button className="icon-button" onClick={() => setDialog(contact)} aria-label={`Edit ${contact.name}`} title="Edit"><Pencil size={16}/></button><button className="delete-button" disabled={busyId === contact.id} onClick={() => void remove(contact)} aria-label={`Delete ${contact.name}`}><X size={16}/></button></div></td></tr>)}</tbody></table></div> : <div className="empty"><span className="empty-symbol">{kind === "customer" ? <UserRound size={23}/> : <Handshake size={23}/>}</span><h3>{query ? "No matching contacts" : `No ${noun}s saved yet`}</h3><p>{query ? "Try another search term." : `Save your first ${noun} to keep their details handy.`}</p>{!query && <button onClick={() => setDialog("new")}><Plus size={16}/> Add {noun}</button>}</div>}
     {dialog && <ContactDialog key={dialog === "new" ? "new" : dialog.id} kind={kind} contact={dialog === "new" ? null : dialog} onClose={() => setDialog(null)} onSaved={() => { setDialog(null); void reload(); }} />}
   </section>;
 }
@@ -346,12 +346,13 @@ function ContactDialog({ kind, contact, onClose, onSaved }: { kind: ContactKind;
   const [email, setEmail] = useState(contact?.email || "");
   const [specialty, setSpecialty] = useState(contact?.specialty || "");
   const [vendorServices, setVendorServices] = useState(() => parseVendorServices(contact?.specialty || ""));
+  const [location, setLocation] = useState(contact?.location || "");
   const [notes, setNotes] = useState(contact?.notes || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setSaving(true); setError("");
-    try { const result = await api(contact ? `/api/contacts/${contact.id}` : "/api/contacts", { method: contact ? "PATCH" : "POST", body: JSON.stringify({ kind, name, contactPerson, phone, email, specialty: kind === "partner" ? serializeVendorServices(vendorServices) : specialty, notes }) }); onSaved(result.id || contact?.id || "", name.trim()); }
+    try { const result = await api(contact ? `/api/contacts/${contact.id}` : "/api/contacts", { method: contact ? "PATCH" : "POST", body: JSON.stringify({ kind, name, contactPerson, phone, email, specialty: kind === "partner" ? serializeVendorServices(vendorServices) : specialty, location: kind === "partner" ? location : "", notes }) }); onSaved(result.id || contact?.id || "", name.trim()); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save contact."); }
     finally { setSaving(false); }
   }
@@ -375,6 +376,7 @@ function ContactDialog({ kind, contact, onClose, onSaved }: { kind: ContactKind;
           </details>
           {vendorServices.length > 0 && <p className="vendor-services-selected">{vendorServices.join(", ")}</p>}
         </div>}
+        {kind === "partner" && <label>Location<input maxLength={255} value={location} onChange={event => setLocation(event.target.value)} placeholder="City, area, or address"/></label>}
         <div className="form-row"><label>Phone<input type="tel" maxLength={60} value={phone} onChange={event => setPhone(event.target.value)}/></label><label>Email<input type="email" maxLength={254} value={email} onChange={event => setEmail(event.target.value)}/></label></div>
         <label>Notes<textarea rows={4} maxLength={4000} value={notes} onChange={event => setNotes(event.target.value)} placeholder="Useful context for the team"/></label>
         {error && <div className="error" role="alert">{error}</div>}

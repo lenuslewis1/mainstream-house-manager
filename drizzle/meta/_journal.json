@@ -50,6 +50,13 @@
       "when": 1790288307143,
       "tag": "0006_lean_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790336073388,
+      "tag": "0007_nosy_radioactive_man",
+      "breakpoints": true
     }
   ]
 }

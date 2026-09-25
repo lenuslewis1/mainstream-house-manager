@@ -10,9 +10,10 @@ export function parseContact(input: Record<string, unknown>) {
   const phone = String(input.phone ?? "").trim();
   const email = String(input.email ?? "").trim();
   const specialty = String(input.specialty ?? "").trim();
+  const location = String(input.location ?? "").trim();
   const notes = String(input.notes ?? "").trim();
-  if (!["customer", "partner"].includes(kind) || !name || name.length > 160 || contactPerson.length > 160 || phone.length > 60 || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || specialty.length > (kind === "partner" ? 4000 : 160) || notes.length > 4000) return null;
-  return { kind, name, contactPerson, phone, email, specialty, notes };
+  if (!["customer", "partner"].includes(kind) || !name || name.length > 160 || contactPerson.length > 160 || phone.length > 60 || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || specialty.length > (kind === "partner" ? 4000 : 160) || location.length > 255 || notes.length > 4000) return null;
+  return { kind, name, contactPerson, phone, email, specialty, location, notes };
 }
 
 export async function GET(request: Request) {
@@ -36,8 +37,8 @@ export async function POST(request: Request) {
   const id = crypto.randomUUID();
   const now = Date.now();
   try {
-    await env.DB!.prepare("INSERT INTO contacts (id, kind, name, contact_person, phone, email, specialty, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, contact.kind, contact.name, contact.contactPerson, contact.phone, contact.email, contact.specialty, contact.notes, now, now).run();
+    await env.DB!.prepare("INSERT INTO contacts (id, kind, name, contact_person, phone, email, specialty, location, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(id, contact.kind, contact.name, contact.contactPerson, contact.phone, contact.email, contact.specialty, contact.location, contact.notes, now, now).run();
     return Response.json({ id }, { status: 201 });
   } catch (error) {
     console.error("Unable to save contact", error);

@@ -62,6 +62,7 @@ export const contacts = sqliteTable("contacts", {
   phone: text("phone").notNull().default(""),
   email: text("email").notNull().default(""),
   specialty: text("specialty").notNull().default(""),
+  location: text("location").notNull().default(""),
   notes: text("notes").notNull().default(""),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),

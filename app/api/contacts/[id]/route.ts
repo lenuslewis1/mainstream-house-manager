@@ -14,8 +14,8 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const existing = await env.DB!.prepare("SELECT kind FROM contacts WHERE id = ?").bind(id).first<{ kind: string }>();
     if (!existing || existing.kind !== contact.kind) return Response.json({ error: "Contact not found" }, { status: 404 });
-    await env.DB!.prepare("UPDATE contacts SET name = ?, contact_person = ?, phone = ?, email = ?, specialty = ?, notes = ?, updated_at = ? WHERE id = ?")
-      .bind(contact.name, contact.contactPerson, contact.phone, contact.email, contact.specialty, contact.notes, Date.now(), id).run();
+    await env.DB!.prepare("UPDATE contacts SET name = ?, contact_person = ?, phone = ?, email = ?, specialty = ?, location = ?, notes = ?, updated_at = ? WHERE id = ?")
+      .bind(contact.name, contact.contactPerson, contact.phone, contact.email, contact.specialty, contact.location, contact.notes, Date.now(), id).run();
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Unable to update contact", error);
