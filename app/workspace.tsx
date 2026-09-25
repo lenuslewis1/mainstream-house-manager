@@ -7,7 +7,7 @@ import CalendarView from "./calendar-view";
 import OverviewPanels from "./overview-panels";
 import DeliverablesPanel from "./deliverables-panel";
 import type { Deliverable } from "../lib/calendar-types";
-import { cents, money, totals } from "../lib/finance";
+import { cents, financialSummary, money, totals } from "../lib/finance";
 
 type Kind = "lead" | "project" | "task" | "booking" | "finance";
 type ContactKind = "customer" | "partner";
@@ -204,11 +204,8 @@ function FinanceSummary({ items }: { items: Item[] }) {
   const projects = items.filter(item => item.kind === "project" || item.kind === "booking");
   const currencies = [...new Set([...projects.map(item => item.currency || "GHS"), ...items.filter(item => item.kind === "finance").map(item => item.currency || "GHS")])].sort();
   return <div className="finance-summary" aria-label="Financial summary"><div className="finance-heading"><h3>Financial summary</h3><p>Order forecasts use price and budgeted cost. Recorded totals use completed finance entries.</p></div>{currencies.length ? currencies.map(currency => {
-    const current = projects.filter(project => (project.currency || "GHS") === currency);
-    const figures = totals(items.filter(item => item.kind === "finance" && (item.currency || "GHS") === currency));
-    const price = current.reduce((sum, project) => sum + cents(project.price), 0);
-    const cost = current.reduce((sum, project) => sum + cents(project.cost), 0);
-    return <div className="finance-currency" key={currency}><strong>{currency}</strong><div className="finance-metrics"><div><span>Order price total</span><b>{money(price, currency)}</b></div><div><span>Budgeted order costs</span><b>{money(cost, currency)}</b></div><div><span>Projected profit</span><b>{money(price - cost, currency)}</b></div><div><span>Recorded revenue</span><b>{money(figures.revenue, currency)}</b></div><div><span>Recorded expenses</span><b>{money(figures.expenses, currency)}</b></div><div><span>Recorded net</span><b>{money(figures.revenue - figures.expenses, currency)}</b></div></div><p>Pending: {money(figures.pendingIncome, currency)} income · {money(figures.pendingExpenses, currency)} expenses. Recorded totals include order-linked and general entries.</p></div>;
+    const figures = financialSummary(items, currency);
+    return <div className="finance-currency" key={currency}><strong>{currency}</strong><div className="finance-metrics"><div><span>Order price total</span><b>{money(figures.price, currency)}</b></div><div><span>Budgeted order costs</span><b>{money(figures.cost, currency)}</b></div><div><span>Projected profit</span><b>{money(figures.projectedProfit, currency)}</b></div><div><span>Recorded revenue</span><b>{money(figures.revenue, currency)}</b></div><div><span>Recorded expenses</span><b>{money(figures.expenses, currency)}</b></div><div><span>Recorded net</span><b>{money(figures.revenue - figures.expenses, currency)}</b></div></div><p>Pending: {money(figures.pendingIncome, currency)} income · {money(figures.pendingExpenses, currency)} expenses. Recorded totals include order-linked and general entries.</p></div>;
   }) : <p>No orders or finance entries yet.</p>}</div>;
 }
 

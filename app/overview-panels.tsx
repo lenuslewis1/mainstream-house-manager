@@ -2,19 +2,20 @@
 
 import { useMemo, useState } from "react";
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import { cents, money } from "../lib/finance";
+import { cents, financialSummary, money } from "../lib/finance";
 import type { CalendarItem, Deliverable } from "../lib/calendar-types";
 
-type OverviewItem = CalendarItem & { amount: string; currency: string; direction: string };
+type OverviewItem = CalendarItem & { amount: string; currency: string; direction: string; price: string; cost: string; created_at: number };
 type Event = { id: string; date: string; title: string; kind: string; status: string; targetKind: "lead" | "project" | "task" | "booking"; targetId: string; projectStatus?: string };
 const orderStatuses = ["Planning", "In progress", "In review", "Delivered", "On hold", "Requested", "Confirmed", "Completed", "Cancelled"];
 const weekdays = ["M", "T", "W", "T", "F", "S", "S"];
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 export default function OverviewPanels({ items, deliverables, loading, onOpenCalendar, onOpenItem, onOpenFinance, onOpenProjects }: { items: OverviewItem[]; deliverables: Deliverable[]; loading: boolean; onOpenCalendar: (date: string) => void; onOpenItem: (kind: Event["targetKind"], id: string) => void; onOpenFinance: () => void; onOpenProjects: () => void }) {
-  const currencies = useMemo(() => [...new Set(items.filter(item => item.kind === "finance").map(item => item.currency || "GHS"))].sort(), [items]);
+  const currencies = useMemo(() => [...new Set(items.filter(item => item.kind === "finance" || item.kind === "project" || item.kind === "booking").map(item => item.currency || "GHS"))].sort(), [items]);
   const [currencyChoice, setCurrencyChoice] = useState("GHS");
   const currency = currencies.includes(currencyChoice) ? currencyChoice : currencies[0] || "GHS";
+  const finance = financialSummary(items, currency);
   const today = dateKey(new Date());
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const events = useMemo<Event[]>(() => [
@@ -32,18 +33,34 @@ export default function OverviewPanels({ items, deliverables, loading, onOpenCal
   const months = Array.from({ length: 6 }, (_, index) => new Date(new Date().getFullYear(), new Date().getMonth() - 5 + index, 1));
   const monthly = months.map(date => {
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const entries = items.filter(item => item.kind === "finance" && item.status === "Completed" && (item.currency || "GHS") === currency && item.due_date.startsWith(key));
+    const entries = items.filter(item => item.kind === "finance" && item.status === "Completed" && (item.currency || "GHS") === currency && (item.due_date || dateKey(new Date(item.created_at))).startsWith(key));
     return { key, label: date.toLocaleDateString(undefined, { month: "short" }), income: entries.filter(item => item.direction === "Income").reduce((sum, item) => sum + cents(item.amount), 0), expenses: entries.filter(item => item.direction === "Expense").reduce((sum, item) => sum + cents(item.amount), 0) };
   });
   const ceiling = Math.max(1, ...monthly.flatMap(row => [row.income, row.expenses]));
-  const hasDatedFinance = monthly.some(row => row.income || row.expenses);
+  const hasChartData = monthly.some(row => row.income || row.expenses);
 
   return <div className="overview-panels">
     <section className="overview-panel overview-calendar"><div className="overview-panel-head"><div><span className="section-number">SCHEDULE / AT A GLANCE</span><h2>{month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h2></div><div className="overview-month-controls"><button aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><ChevronLeft size={18}/></button><button aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><ChevronRight size={18}/></button></div></div><div className="overview-mini-calendar" aria-label={`Dates in ${month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}`}>{weekdays.map((day, index) => <span className="overview-weekday" key={index}>{day}</span>)}{days.map(day => { const key = dateKey(day); const count = eventsByDay.get(key) || 0; return <button key={key} className={`${day.getMonth() !== month.getMonth() ? "outside" : ""} ${key === today ? "today" : ""}`} aria-label={`${day.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}: ${count} scheduled item${count === 1 ? "" : "s"}`} onClick={() => onOpenCalendar(key)}>{day.getDate()}{count > 0 && <i aria-hidden="true"/>}</button>; })}</div><button className="overview-panel-link" onClick={() => onOpenCalendar(today)}>Open full calendar <ArrowRight size={16}/></button></section>
     <section className="overview-panel overview-upcoming"><div className="overview-panel-head"><div><span className="section-number">NEXT DATES</span><h2>Coming up</h2></div><CalendarDays size={19}/></div>{loading ? <p className="overview-empty">Loading dates…</p> : upcoming.length ? <div className="overview-upcoming-list">{upcoming.map(event => <button key={event.id} onClick={() => onOpenItem(event.targetKind, event.targetId)}><span className="overview-upcoming-date">{new Date(`${event.date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><span><strong>{event.title}</strong><small>{event.kind === "deliverable" ? `Deliverable · ${event.status} · Order ${event.projectStatus}` : `${event.kind === "project" ? "order" : event.kind} · ${event.status}`}</small></span><ArrowRight size={16}/></button>)}</div> : <p className="overview-empty">No upcoming dates. Add a due date or order deliverable.</p>}<button className="overview-panel-link" onClick={() => onOpenCalendar(today)}>See all dates <ArrowRight size={16}/></button></section>
-    <section className="overview-panel overview-finance"><div className="overview-panel-head"><div><span className="section-number">PERFORMANCE / LAST 6 MONTHS</span><h2>Money in and out</h2></div>{currencies.length > 1 && <label className="overview-currency">Currency <select value={currency} onChange={event => setCurrencyChoice(event.target.value)}>{currencies.map(code => <option key={code}>{code}</option>)}</select></label>}</div><p className="overview-caption">Completed entries with transaction dates · {currency}</p>{loading ? <p className="overview-empty">Loading financials…</p> : hasDatedFinance ? <><div className="overview-chart" role="img" aria-label={`Monthly completed income and expenses in ${currency}. ${monthly.map(row => `${row.label}: income ${money(row.income, currency)}, expenses ${money(row.expenses, currency)}`).join("; ")}`}>
-      {monthly.map(row => <div className="overview-month" key={row.key}><div className="overview-bar-pair"><div className="overview-bar income" style={{height: `${row.income ? Math.max(4, row.income / ceiling * 100) : 0}%`}} title={`${row.label} income: ${money(row.income, currency)}`}/><div className="overview-bar expense" style={{height: `${row.expenses ? Math.max(4, row.expenses / ceiling * 100) : 0}%`}} title={`${row.label} expenses: ${money(row.expenses, currency)}`}/></div><span>{row.label}</span></div>)}
-    </div><div className="overview-chart-legend"><span><i className="income"/> Revenue</span><span><i className="expense"/> Expenses</span></div></> : <p className="overview-empty">No completed entries with transaction dates in the last six months.</p>}<button className="overview-panel-link" onClick={onOpenFinance}>View finances <ArrowRight size={16}/></button></section>
+    <section className="overview-panel overview-finance">
+      <div className="overview-panel-head"><div><span className="section-number">FINANCES / ALL TIME</span><h2>Financial snapshot</h2></div>{currencies.length > 1 && <label className="overview-currency">Currency <select value={currency} onChange={event => setCurrencyChoice(event.target.value)}>{currencies.map(code => <option key={code}>{code}</option>)}</select></label>}</div>
+      {loading ? <p className="overview-empty">Loading financials…</p> : currencies.length ? <>
+        <div className="overview-finance-metrics" aria-label={`Financial totals in ${currency}`}>
+          <div><span>Order price total</span><strong>{money(finance.price, currency)}</strong></div>
+          <div><span>Budgeted order costs</span><strong>{money(finance.cost, currency)}</strong></div>
+          <div><span>Projected profit</span><strong>{money(finance.projectedProfit, currency)}</strong></div>
+          <div><span>Recorded revenue</span><strong>{money(finance.revenue, currency)}</strong></div>
+          <div><span>Recorded expenses</span><strong>{money(finance.expenses, currency)}</strong></div>
+          <div><span>Recorded net</span><strong>{money(finance.revenue - finance.expenses, currency)}</strong></div>
+        </div>
+        <p className="overview-caption">Pending: {money(finance.pendingIncome, currency)} income · {money(finance.pendingExpenses, currency)} expenses</p>
+        <p className="overview-caption overview-chart-caption">Completed income and expenses · last 6 months · {currency}</p>
+        {hasChartData ? <><div className="overview-chart" role="img" aria-label={`Monthly completed income and expenses in ${currency}. ${monthly.map(row => `${row.label}: income ${money(row.income, currency)}, expenses ${money(row.expenses, currency)}`).join("; ")}`}>
+          {monthly.map(row => <div className="overview-month" key={row.key}><div className="overview-bar-pair"><div className="overview-bar income" style={{height: `${row.income ? Math.max(4, row.income / ceiling * 100) : 0}%`}} title={`${row.label} income: ${money(row.income, currency)}`}/><div className="overview-bar expense" style={{height: `${row.expenses ? Math.max(4, row.expenses / ceiling * 100) : 0}%`}} title={`${row.label} expenses: ${money(row.expenses, currency)}`}/></div><span>{row.label}</span></div>)}
+        </div><div className="overview-chart-legend"><span><i className="income"/> Revenue</span><span><i className="expense"/> Expenses</span></div></> : <p className="overview-empty">No completed entries in the last six months. All-time totals appear above.</p>}
+      </> : <p className="overview-empty">Add an order or finance entry to see financial totals here.</p>}
+      <button className="overview-panel-link" onClick={onOpenFinance}>View finances <ArrowRight size={16}/></button>
+    </section>
     <section className="overview-panel overview-projects"><div className="overview-panel-head"><div><span className="section-number">DELIVERY / ALL ORDERS</span><h2>Order status</h2></div><strong className="overview-total">{orders.length}</strong></div>{loading ? <p className="overview-empty">Loading orders…</p> : orders.length ? <div className="overview-status-chart" role="img" aria-label={statusCounts.map(row => `${row.status}: ${row.count}`).join("; ")}>{statusCounts.map(row => <div className="overview-status-row" key={row.status}><span>{row.status}</span><div className="overview-status-track"><i style={{width: `${row.count / orders.length * 100}%`}}/></div><strong>{row.count}</strong></div>)}</div> : <p className="overview-empty">Add an order or booking to see delivery status here.</p>}<button className="overview-panel-link" onClick={onOpenProjects}>View orders <ArrowRight size={16}/></button></section>
   </div>;
 }

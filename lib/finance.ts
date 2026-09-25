@@ -9,7 +9,7 @@ export function money(value: number, currency: string): string {
   return `${currency || "GHS"} ${(value / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export type FinanceRecord = { kind: string; status: string; direction: string; amount: string; currency: string; project_id: string | null };
+export type FinanceRecord = { kind: string; status: string; direction: string; amount: string; currency: string; project_id?: string | null; price?: string; cost?: string };
 
 export function totals(records: FinanceRecord[]) {
   return records.reduce((sum, record) => {
@@ -24,4 +24,12 @@ export function totals(records: FinanceRecord[]) {
     }
     return sum;
   }, { revenue: 0, expenses: 0, pendingIncome: 0, pendingExpenses: 0 });
+}
+
+export function financialSummary(records: FinanceRecord[], currency: string) {
+  const inCurrency = records.filter(record => (record.currency || "GHS") === currency);
+  const orders = inCurrency.filter(record => record.kind === "project" || record.kind === "booking");
+  const price = orders.reduce((sum, order) => sum + cents(order.price), 0);
+  const cost = orders.reduce((sum, order) => sum + cents(order.cost), 0);
+  return { price, cost, projectedProfit: price - cost, ...totals(inCurrency) };
 }
