@@ -305,6 +305,31 @@ function WorkAssetsPanel({ kind, records, selectedId }: { kind: "lead" | "projec
   </section>;
 }
 
+function useCustomers() {
+  const [customers, setCustomers] = useState<Contact[]>([]);
+  const [customerError, setCustomerError] = useState("");
+  const [customersLoading, setCustomersLoading] = useState(true);
+  const reloadCustomers = useCallback(async () => {
+    setCustomerError("");
+    try {
+      const response = await fetch("/api/contacts?kind=customer", { cache: "no-store" });
+      const data = await response.json() as { contacts?: Contact[]; error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not load customers.");
+      setCustomers(data.contacts || []);
+      setCustomerError("");
+    } catch (cause) { setCustomerError(cause instanceof Error ? cause.message : "Could not load customers."); }
+    finally { setCustomersLoading(false); }
+  }, []);
+  useEffect(() => { void reloadCustomers(); }, [reloadCustomers]);
+  return { customers, customerError, customersLoading, reloadCustomers };
+}
+
+function CustomerField({ value, onChange, customers, loading, onAdd }: { value: string; onChange: (name: string) => void; customers: Pick<Contact, "id" | "name">[]; loading: boolean; onAdd: () => void }) {
+  const names = Array.from(new Map(customers.map(customer => [customer.name.trim().toLocaleLowerCase(), customer.name.trim()])).values()).filter(Boolean);
+  if (value && !names.includes(value)) names.unshift(value);
+  return <div className="customer-field"><label>Customer<select value={value} onChange={event => onChange(event.target.value)}><option value="">{loading ? "Loading customers…" : "Select customer"}</option>{names.map(name => <option key={name} value={name}>{name}</option>)}</select></label><button type="button" className="outline-button" onClick={onAdd}><Plus size={16}/> Add customer</button></div>;
+}
+
 function EditItemDialog({ item, projects, vendors, vendorError, onClose, onSaved }: { item: Item; projects: Item[]; vendors: Contact[]; vendorError: string; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(item.title);
   const [client, setClient] = useState(item.client);
@@ -320,6 +345,10 @@ function EditItemDialog({ item, projects, vendors, vendorError, onClose, onSaved
   const [vendorId, setVendorId] = useState(item.vendor_id || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showCustomerDialog, setShowCustomerDialog] = useState(false);
+  const [createdCustomer, setCreatedCustomer] = useState<{ id: string; name: string } | null>(null);
+  const { customers, customerError, customersLoading, reloadCustomers } = useCustomers();
+  const customerOptions = createdCustomer && !customers.some(customer => customer.id === createdCustomer.id) ? [...customers, createdCustomer] : customers;
   const knownServices = serviceGroups.flatMap(group => group.items.map(name => `${group.name} / ${name}`));
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setSaving(true); setError("");
@@ -327,11 +356,12 @@ function EditItemDialog({ item, projects, vendors, vendorError, onClose, onSaved
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save changes."); }
     finally { setSaving(false); }
   }
-  return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-item-title">
+  return <><div className="modal-backdrop" inert={showCustomerDialog} aria-hidden={showCustomerDialog} onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="edit-item-title">
     <div className="modal-top"><div><span className="section-number">EDIT / {item.kind === "project" || item.kind === "booking" ? "ORDER" : item.kind.toUpperCase()}</span><h2 id="edit-item-title">Edit {labels[item.kind].toLowerCase()}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close"><X size={20}/></button></div>
-    <form onSubmit={submit}><label>Title <input autoFocus required maxLength={160} value={title} onChange={event => setTitle(event.target.value)}/></label><div className="form-row"><label>Customer <input maxLength={160} value={client} onChange={event => setClient(event.target.value)}/></label>{item.kind !== "finance" && <label>Service <select value={service} onChange={event => setService(event.target.value)}><option value="">Select subservice</option>{service && !knownServices.includes(service) && <option value={service}>{service}</option>}{serviceGroups.map(group => <optgroup key={group.name} label={group.name}>{group.items.map(name => <option key={name} value={`${group.name} / ${name}`}>{name}</option>)}</optgroup>)}</select></label>}</div>{(item.kind === "project" || item.kind === "booking") && <><label>Vendor <select value={vendorId} onChange={event => setVendorId(event.target.value)}><option value="">Unassigned</option>{vendors.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></label>{vendorError && <AlertMessage message={vendorError}/>}</>}{(item.kind === "project" || item.kind === "booking") && <div className="form-row"><label>Order price <input type="number" min="0" step="0.01" required value={price} onChange={event => setPrice(event.target.value)}/></label><label>Budgeted cost <input type="number" min="0" step="0.01" required value={cost} onChange={event => setCost(event.target.value)}/></label></div>}{item.kind === "finance" && <><div className="form-row"><label>Type <select value={direction} onChange={event => setDirection(event.target.value)}><option>Income</option><option>Expense</option></select></label><label>Amount <input type="number" min="0" step="0.01" required value={amount} onChange={event => setAmount(event.target.value)}/></label></div><label>Order <select value={projectId} onChange={event => { const id = event.target.value; setProjectId(id); const project = projects.find(candidate => candidate.id === id); if (project) setCurrency(project.currency || "GHS"); }}><option value="">General / unlinked</option>{projects.map(project => <option key={project.id} value={project.id}>{project.title} {project.kind === "booking" ? "(booking)" : ""}</option>)}</select></label></>}{(item.kind === "project" || item.kind === "booking" || item.kind === "finance") && <label>Currency <input required maxLength={3} minLength={3} value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} placeholder="GHS"/></label>}<label>{item.kind === "finance" ? "Transaction date" : item.kind === "booking" ? "Booking date" : "Due date"} <input type="date" required={item.kind === "booking"} value={dueDate} onChange={event => setDueDate(event.target.value)}/></label><label>Notes <textarea rows={4} maxLength={4000} value={notes} onChange={event => setNotes(event.target.value)}/></label>{error && <AlertMessage message={error}/>}<div className="modal-actions"><button className="cancel-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}<ArrowRight size={17}/></button></div></form>
+    <form onSubmit={submit}><label>Title <input autoFocus required maxLength={160} value={title} onChange={event => setTitle(event.target.value)}/></label><div className="customer-service-row"><CustomerField value={client} onChange={setClient} customers={customerOptions} loading={customersLoading} onAdd={() => setShowCustomerDialog(true)}/>{item.kind !== "finance" && <label>Service <select value={service} onChange={event => setService(event.target.value)}><option value="">Select subservice</option>{service && !knownServices.includes(service) && <option value={service}>{service}</option>}{serviceGroups.map(group => <optgroup key={group.name} label={group.name}>{group.items.map(name => <option key={name} value={`${group.name} / ${name}`}>{name}</option>)}</optgroup>)}</select></label>}</div>{customerError && <AlertMessage message={customerError} onRetry={reloadCustomers}/>} {(item.kind === "project" || item.kind === "booking") && <><label>Vendor <select value={vendorId} onChange={event => setVendorId(event.target.value)}><option value="">Unassigned</option>{vendors.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></label>{vendorError && <AlertMessage message={vendorError}/>}</>}{(item.kind === "project" || item.kind === "booking") && <div className="form-row"><label>Order price <input type="number" min="0" step="0.01" required value={price} onChange={event => setPrice(event.target.value)}/></label><label>Budgeted cost <input type="number" min="0" step="0.01" required value={cost} onChange={event => setCost(event.target.value)}/></label></div>}{item.kind === "finance" && <><div className="form-row"><label>Type <select value={direction} onChange={event => setDirection(event.target.value)}><option>Income</option><option>Expense</option></select></label><label>Amount <input type="number" min="0" step="0.01" required value={amount} onChange={event => setAmount(event.target.value)}/></label></div><label>Order <select value={projectId} onChange={event => { const id = event.target.value; setProjectId(id); const project = projects.find(candidate => candidate.id === id); if (project) setCurrency(project.currency || "GHS"); }}><option value="">General / unlinked</option>{projects.map(project => <option key={project.id} value={project.id}>{project.title} {project.kind === "booking" ? "(booking)" : ""}</option>)}</select></label></>}{(item.kind === "project" || item.kind === "booking" || item.kind === "finance") && <label>Currency <input required maxLength={3} minLength={3} value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} placeholder="GHS"/></label>}<label>{item.kind === "finance" ? "Transaction date" : item.kind === "booking" ? "Booking date" : "Due date"} <input type="date" required={item.kind === "booking"} value={dueDate} onChange={event => setDueDate(event.target.value)}/></label><label>Notes <textarea rows={4} maxLength={4000} value={notes} onChange={event => setNotes(event.target.value)}/></label>{error && <AlertMessage message={error}/>}<div className="modal-actions"><button className="cancel-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}<ArrowRight size={17}/></button></div></form>
     {(item.kind === "lead" || item.kind === "project" || item.kind === "booking") && <WorkAssetsPanel kind={item.kind} records={[item]} selectedId={item.id}/>}
-  </div></div>;
+  </div></div>
+  {showCustomerDialog && <ContactDialog kind="customer" contact={null} onClose={() => setShowCustomerDialog(false)} onSaved={(id, name) => { setCreatedCustomer({ id, name }); setClient(name); setShowCustomerDialog(false); void reloadCustomers(); }}/>}</>;
 }
 
 function ContactsPanel({ kind }: { kind: ContactKind }) {
@@ -426,12 +456,16 @@ function NewItemDialog({ kind, projects, vendors, vendorError, reloadVendors, in
   const [projectId,setProjectId] = useState(initialProjectId);
   const [vendorId,setVendorId] = useState("");
   const [showVendorDialog,setShowVendorDialog] = useState(false);
+  const [showCustomerDialog,setShowCustomerDialog] = useState(false);
   const [createdVendor,setCreatedVendor] = useState<{id: string; name: string} | null>(null);
+  const [createdCustomer,setCreatedCustomer] = useState<{id: string; name: string} | null>(null);
+  const { customers, customerError, customersLoading, reloadCustomers } = useCustomers();
   const [saving,setSaving] = useState(false);
   const [error,setError] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
   const vendorOptions = createdVendor && !vendors.some(vendor => vendor.id === createdVendor.id) ? [...vendors, createdVendor] : vendors;
+  const customerOptions = createdCustomer && !customers.some(customer => customer.id === createdCustomer.id) ? [...customers, createdCustomer] : customers;
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (files.some(file => file.size === 0 || file.size > 25 * 1024 * 1024)) { setError("Each file must be between 1 byte and 25 MB."); return; }
@@ -458,12 +492,13 @@ function NewItemDialog({ kind, projects, vendors, vendorError, reloadVendors, in
     } catch(cause) { setError(`${recordId ? `${labels[kind]} saved. ` : ""}${cause instanceof Error ? cause.message : "Could not save."}${recordId ? " Retry the remaining files or close this form." : ""}`); }
     finally { setSaving(false); }
   }
-  return <><div className="modal-backdrop" inert={showVendorDialog} aria-hidden={showVendorDialog} onMouseDown={e => { if(e.target === e.currentTarget) onClose(); }}>
+  return <><div className="modal-backdrop" inert={showVendorDialog || showCustomerDialog} aria-hidden={showVendorDialog || showCustomerDialog} onMouseDown={e => { if(e.target === e.currentTarget) onClose(); }}>
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div className="modal-top"><div><span className="section-number">NEW / {labels[kind].toUpperCase()}</span><h2 id="modal-title">Add a {labels[kind].toLowerCase()}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close"><X size={20}/></button></div>
       <form onSubmit={submit}>
         {!savedId && <><label>Title <input autoFocus required maxLength={160} value={title} onChange={e=>setTitle(e.target.value)} placeholder={kind === "lead" ? "What does the client need?" : kind === "project" ? "Order name" : kind === "booking" ? "Booking title" : kind === "finance" ? "What was this for?" : "What needs to be done?"}/></label>
-        <div className="form-row"><label>Customer <input maxLength={160} value={client} onChange={e=>setClient(e.target.value)} placeholder="Customer or business name"/></label><label>Service <select value={service} onChange={e=>setService(e.target.value)}><option value="">Select subservice</option>{serviceGroups.map(group => <optgroup key={group.name} label={group.name}>{group.items.map(item => <option key={item} value={`${group.name} / ${item}`}>{item}</option>)}</optgroup>)}</select></label></div>
+        <div className="customer-service-row"><CustomerField value={client} onChange={setClient} customers={customerOptions} loading={customersLoading} onAdd={() => setShowCustomerDialog(true)}/><label>Service <select value={service} onChange={e=>setService(e.target.value)}><option value="">Select subservice</option>{serviceGroups.map(group => <optgroup key={group.name} label={group.name}>{group.items.map(item => <option key={item} value={`${group.name} / ${item}`}>{item}</option>)}</optgroup>)}</select></label></div>
+        {customerError && <AlertMessage message={customerError} onRetry={reloadCustomers}/>}
         {(kind === "project" || kind === "booking") && <><div className="vendor-field"><label>Vendor <select value={vendorId} onChange={e=>setVendorId(e.target.value)}><option value="">Unassigned</option>{vendorOptions.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</select></label><button type="button" className="outline-button" onClick={() => setShowVendorDialog(true)}><Plus size={16}/> Add vendor</button></div>{vendorError && <AlertMessage message={vendorError}/>}<div className="form-row"><label>Order price <input type="number" min="0" step="0.01" required value={price} onChange={e=>setPrice(e.target.value)}/></label><label>Budgeted cost <input type="number" min="0" step="0.01" required value={cost} onChange={e=>setCost(e.target.value)}/></label></div><label>Currency <input required maxLength={3} minLength={3} value={currency} onChange={e=>setCurrency(e.target.value.toUpperCase())} placeholder="GHS"/></label></>}
         {kind === "finance" && <div className="form-row"><label>Type <select value={direction} onChange={e=>setDirection(e.target.value)}><option>Income</option><option>Expense</option></select></label><label>Amount <input type="number" min="0.01" step="0.01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label></div>}
         {kind === "finance" && <label>Order <select value={projectId} onChange={e => { const id = e.target.value; setProjectId(id); const project = projects.find(candidate => candidate.id === id); if (project) setCurrency(project.currency || "GHS"); }}><option value="">General / unlinked</option>{projects.map(project => <option key={project.id} value={project.id}>{project.title} {project.kind === "booking" ? "(booking)" : ""}</option>)}</select></label>}
@@ -477,5 +512,6 @@ function NewItemDialog({ kind, projects, vendors, vendorError, reloadVendors, in
     </div>
   </div>
   {showVendorDialog && <ContactDialog kind="partner" contact={null} onClose={() => setShowVendorDialog(false)} onSaved={(id, name) => { setCreatedVendor({ id, name }); setVendorId(id); setShowVendorDialog(false); void reloadVendors(); }}/>}
+  {showCustomerDialog && <ContactDialog kind="customer" contact={null} onClose={() => setShowCustomerDialog(false)} onSaved={(id, name) => { setCreatedCustomer({ id, name }); setClient(name); setShowCustomerDialog(false); void reloadCustomers(); }}/>}
   </>;
 }
