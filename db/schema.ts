@@ -67,3 +67,17 @@ export const contacts = sqliteTable("contacts", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, table => [index("idx_contacts_kind").on(table.kind)]);
+
+export const invoices = sqliteTable("invoices", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderId: text("order_id").notNull(),
+  issueDate: text("issue_date").notNull(),
+  dueDate: text("due_date").notNull(),
+  billToName: text("bill_to_name").notNull().default(""),
+  billToDetails: text("bill_to_details").notNull().default(""),
+  currency: text("currency").notNull().default("GHS"),
+  lineItems: text("line_items").notNull(),
+  paymentDetails: text("payment_details").notNull().default(""),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, table => [uniqueIndex("idx_invoices_order_id").on(table.orderId)]);
