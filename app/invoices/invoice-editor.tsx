@@ -1,5 +1,6 @@
 "use client";
 
+import PomaaForm from "../pomaa-form";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Plus, Printer, Save, Trash2 } from "lucide-react";
 import { invoiceNumber, invoiceTotal, parseInvoiceLines, type InvoiceLine, type InvoiceRecord } from "../../lib/invoice";
@@ -73,7 +74,7 @@ export default function InvoiceEditor({ id }: { id: string }) {
     {error && <AlertMessage message={error}/>}
     <div className="invoice-workarea">
       <section className="invoice-controls" aria-label="Invoice details"><div className="invoice-controls-heading"><span>INVOICE {invoiceNumber(invoice)}</span><h2>Edit invoice</h2><p>Created from your order. Review the details, save, then print or save as PDF.</p></div>
-        <label>Customer name<input value={draft.bill_to_name} onChange={event => change("bill_to_name", event.target.value)} maxLength={160}/></label>
+        <PomaaForm kind="invoice" disabled={saving} context={draft} fields={{billToName: value => change("bill_to_name",value), billToDetails: value => change("bill_to_details",value), issueDate: value => change("issue_date",value), dueDate: value => change("due_date",value), paymentDetails: value => change("payment_details",value), lineItems: value => change("line_items", JSON.parse(value))}}/><label>Customer name<input value={draft.bill_to_name} onChange={event => change("bill_to_name", event.target.value)} maxLength={160}/></label>
         <label>Billing details<textarea value={draft.bill_to_details} onChange={event => change("bill_to_details", event.target.value)} rows={3} maxLength={1000} placeholder="Address, contact person, phone or email"/></label>
         <div className="invoice-date-fields"><label>Invoice date<input type="date" value={draft.issue_date} onChange={event => change("issue_date", event.target.value)}/></label><label>Due date<input type="date" value={draft.due_date} onChange={event => change("due_date", event.target.value)}/></label></div>
         <div className="invoice-line-heading"><h3>Line items</h3><button type="button" disabled={draft.line_items.length >= 10} onClick={() => change("line_items", [...draft.line_items, { description: "", quantity: 1, unitPrice: "0" }])}><Plus size={15}/> Add item</button></div>

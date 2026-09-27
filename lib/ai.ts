@@ -22,7 +22,7 @@ export async function aiResponse(instructions: string, content: string | InputPa
         reasoning: { effort: "none" },
         instructions,
         input: [{ role: "user", content }],
-        max_output_tokens: schema ? 1200 : 1400,
+        max_output_tokens: schema?.name === "form_fields" ? 3000 : schema ? 1200 : 1400,
         ...(schema ? { text: { format: { type: "json_schema", ...schema } } } : {}),
       }),
       signal: controller.signal,
