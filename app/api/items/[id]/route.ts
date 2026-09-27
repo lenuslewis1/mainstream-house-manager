@@ -4,6 +4,8 @@ import { validMoney } from "../../../../lib/finance";
 
 import { parseFinanceDetails } from "../../../../lib/finance-reports";
 
+import { parseOrderCosts, costTotal } from "../../../../lib/order-costs";
+
 export const runtime = "edge";
 
 const statuses: Record<string, string[]> = {
@@ -64,15 +66,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
       if (item.kind === "project" || item.kind === "booking") {
         const price = String(input.price ?? "0").trim();
-        const cost = String(input.cost ?? "0").trim();
+        const costItems = input.costItems === undefined ? null : parseOrderCosts(input.costItems);
+        if (input.costItems !== undefined && !costItems) return Response.json({ error: "Enter a description and valid amount for each order cost." }, { status: 400 });
+        const cost = costItems ? costTotal(costItems) : String(input.cost ?? "0").trim();
         const currency = String(input.currency ?? "GHS").trim().toUpperCase();
         if (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency)) return Response.json({ error: "Enter a valid order price, cost, and currency." }, { status: 400 });
         const linked = await env.DB!.prepare("SELECT 1 FROM work_items WHERE project_id = ? AND kind = 'finance' AND currency != ? LIMIT 1").bind(id, currency).first();
         if (linked) return Response.json({ error: "Order currency must match its linked finance entries." }, { status: 409 });
         if (vendorId && !(await env.DB!.prepare("SELECT id FROM contacts WHERE id = ? AND kind = 'partner'").bind(vendorId).first())) return Response.json({ error: "Choose an existing vendor." }, { status: 400 });
         const now = Date.now();
-        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, price = ?, cost = ?, currency = ?, vendor_id = ?, updated_at = ? WHERE id = ?")
-          .bind(title, client, service, dueDate, notes, price, cost, currency, vendorId || null, now, id)];
+        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, price = ?, cost = ?, currency = ?, vendor_id = ?, updated_at = ?, cost_items = ? WHERE id = ?")
+          .bind(title, client, service, dueDate, notes, price, cost, currency, vendorId || null, now, JSON.stringify(costItems || []), id)];
         if (client) statements.push(customerInsert(client, now));
         await env.DB!.batch(statements);
       } else {

@@ -1,0 +1,1 @@
+ALTER TABLE `work_items` ADD `cost_items` text DEFAULT '[]' NOT NULL;

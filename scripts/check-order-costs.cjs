@@ -1,0 +1,7 @@
+const fs=require("node:fs"),path=require("node:path"),ts=require("typescript"),assert=require("node:assert/strict");
+function load(file){const mod={exports:{}};new Function("require","module","exports",ts.transpileModule(fs.readFileSync(file,"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>load(path.resolve(path.dirname(file),name+".ts")),mod,mod.exports);return mod.exports;}
+const {parseOrderCosts,costTotal,savedOrderCosts}=load("lib/order-costs.ts"),{financialSummary}=load("lib/finance.ts");
+const lines=parseOrderCosts([{description:"Printing",amount:"100.10"},{description:"Delivery",amount:"20.20"}]);assert.equal(costTotal(lines),"120.30");
+assert.equal(parseOrderCosts([{description:"",amount:"1"}]),null);assert.equal(parseOrderCosts([{description:"Bad",amount:"-1"}]),null);assert.equal(parseOrderCosts([{description:"Bad",amount:"1.234"}]),null);assert.equal(costTotal([]),"0.00");assert.equal(savedOrderCosts("[]","75")[0].amount,"75");assert.deepEqual(savedOrderCosts(JSON.stringify(lines),"120.30"),lines);
+const s=financialSummary([{kind:"project",status:"Planning",direction:"",amount:"",currency:"GHS",price:"200",cost:costTotal(lines)}],"GHS");assert.equal(s.expenses,12030);assert.equal(s.profit,7970);
+console.log("Order cost checks passed: exact totals, validation, legacy costs and finance integration.");

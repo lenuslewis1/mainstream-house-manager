@@ -4,6 +4,8 @@ import { validMoney } from "../../../lib/finance";
 
 import { parseFinanceDetails } from "../../../lib/finance-reports";
 
+import { parseOrderCosts, costTotal } from "../../../lib/order-costs";
+
 export const runtime = "edge";
 
 const statuses: Record<string, string[]> = {
@@ -40,7 +42,9 @@ export async function POST(request: Request) {
   const currency = String(input.currency ?? "").trim().toUpperCase();
   const direction = String(input.direction ?? "");
   const price = String(input.price ?? "0").trim();
-  const cost = String(input.cost ?? "0").trim();
+  const costItems = input.costItems === undefined ? [] : parseOrderCosts(input.costItems);
+  if (!costItems) return Response.json({ error: "Enter a description and valid amount for each order cost." }, { status: 400 });
+  const cost = input.costItems === undefined ? String(input.cost ?? "0").trim() : costTotal(costItems);
   const projectId = String(input.projectId ?? "").trim();
   const vendorId = String(input.vendorId ?? "").trim();
   if (!statuses[kind] || !title || title.length > 160 || !statuses[kind].includes(status) || (kind === "lead" && status === "Won") || client.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (kind === "booking" && !dueDate) || (["project", "booking"].includes(kind) && (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency))) || (kind === "finance" && (!validMoney(amount) || !/^[A-Z]{3}$/.test(currency) || !["Income", "Expense"].includes(direction)))) {
@@ -59,8 +63,8 @@ export async function POST(request: Request) {
     if (vendorId && (kind !== "project" && kind !== "booking" || !(await env.DB!.prepare("SELECT id FROM contacts WHERE id = ? AND kind = 'partner'").bind(vendorId).first()))) {
       return Response.json({ error: "Choose an existing vendor." }, { status: 400 });
     }
-    const statements = [env.DB!.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, vendor_id, created_at, updated_at, category, payment_method, reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-      .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", ["finance", "project", "booking"].includes(kind) ? currency : "", kind === "finance" ? direction : "", ["project", "booking"].includes(kind) ? price : "0", ["project", "booking"].includes(kind) ? cost : "0", kind === "finance" && projectId ? projectId : null, vendorId || null, now, now, kind === "finance" ? details?.category || "" : "", kind === "finance" ? details?.paymentMethod || "" : "", kind === "finance" ? details?.reference || "" : "")];
+    const statements = [env.DB!.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, vendor_id, created_at, updated_at, category, payment_method, reference, cost_items) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", ["finance", "project", "booking"].includes(kind) ? currency : "", kind === "finance" ? direction : "", ["project", "booking"].includes(kind) ? price : "0", ["project", "booking"].includes(kind) ? cost : "0", kind === "finance" && projectId ? projectId : null, vendorId || null, now, now, kind === "finance" ? details?.category || "" : "", kind === "finance" ? details?.paymentMethod || "" : "", kind === "finance" ? details?.reference || "" : "", JSON.stringify(["project", "booking"].includes(kind) ? costItems : []))];
     if (client) statements.push(env.DB!.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT ?, 'customer', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND TRIM(name) = ? COLLATE NOCASE)")
       .bind(crypto.randomUUID(), client, now, now, client));
     await env.DB!.batch(statements);

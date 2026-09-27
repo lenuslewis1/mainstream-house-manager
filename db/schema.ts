@@ -14,6 +14,7 @@ export const workItems = sqliteTable("work_items", {
   direction: text("direction").notNull().default(""),
   price: text("price").notNull().default("0"),
   cost: text("cost").notNull().default("0"),
+  costItems: text("cost_items").notNull().default("[]"),
   projectId: text("project_id"),
   vendorId: text("vendor_id"),
   sourceLeadId: text("source_lead_id"),

@@ -71,6 +71,13 @@
       "when": 1790537090669,
       "tag": "0009_luxuriant_kinsey_walden",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790539813957,
+      "tag": "0010_slim_penance",
+      "breakpoints": true
     }
   ]
 }
