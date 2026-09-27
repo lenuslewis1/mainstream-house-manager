@@ -2,6 +2,8 @@ import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { validMoney } from "../../../../lib/finance";
 
+import { parseFinanceDetails } from "../../../../lib/finance-reports";
+
 export const runtime = "edge";
 
 const statuses: Record<string, string[]> = {
@@ -27,6 +29,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!item) return Response.json({ error: "Record not found" }, { status: 404 });
     if (input.mode === "details") {
       if (item.kind === "finance") {
+        const details = parseFinanceDetails(input);
+        if (!details) return Response.json({ error: "Check category, payment method, and reference." }, { status: 400 });
         const title = String(input.title ?? "").trim();
         const client = String(input.client ?? "").trim();
         const notes = String(input.notes ?? "").trim();
@@ -42,8 +46,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           if ((project.currency || "GHS") !== currency) return Response.json({ error: "Finance entry currency must match the order currency." }, { status: 400 });
         }
         const now = Date.now();
-        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, notes = ?, due_date = ?, amount = ?, currency = ?, direction = ?, project_id = ?, updated_at = ? WHERE id = ?")
-          .bind(title, client, notes, dueDate, amount, currency, direction, projectId || null, now, id)];
+        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, notes = ?, due_date = ?, amount = ?, currency = ?, direction = ?, project_id = ?, updated_at = ?, category = ?, payment_method = ?, reference = ? WHERE id = ?")
+          .bind(title, client, notes, dueDate, amount, currency, direction, projectId || null, now, details.category, details.paymentMethod, details.reference, id)];
         if (client) statements.push(customerInsert(client, now));
         await env.DB!.batch(statements);
         return Response.json({ ok: true });

@@ -17,6 +17,9 @@ export const workItems = sqliteTable("work_items", {
   projectId: text("project_id"),
   vendorId: text("vendor_id"),
   sourceLeadId: text("source_lead_id"),
+  category: text("category").notNull().default(""),
+  paymentMethod: text("payment_method").notNull().default(""),
+  reference: text("reference").notNull().default(""),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, table => [uniqueIndex("idx_work_items_source_lead_id").on(table.sourceLeadId), index("idx_work_items_project_id").on(table.projectId), index("idx_work_items_vendor_id").on(table.vendorId)]);
@@ -81,3 +84,11 @@ export const invoices = sqliteTable("invoices", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, table => [uniqueIndex("idx_invoices_order_id").on(table.orderId)]);
+
+export const financeBudgets = sqliteTable("finance_budgets", {
+  month: text("month").notNull(),
+  currency: text("currency").notNull(),
+  revenueTarget: text("revenue_target").notNull().default("0"),
+  expenseLimit: text("expense_limit").notNull().default("0"),
+  updatedAt: integer("updated_at").notNull(),
+}, table => [uniqueIndex("idx_finance_budgets_month_currency").on(table.month, table.currency)]);
