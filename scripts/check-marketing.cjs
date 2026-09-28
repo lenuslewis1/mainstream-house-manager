@@ -1,0 +1,19 @@
+const fs=require("node:fs"),path=require("node:path"),ts=require("typescript"),assert=require("node:assert/strict");
+let signedIn=true,aiCalls=0,batches=[],binds=[],generated;
+class AIServiceError extends Error {constructor(message,status=503){super(message);this.status=status;}}
+const DB={prepare(sql){return {bind(...values){binds.push({sql,values});return this;},async all(){return {results:[]};},async run(){return {meta:{changes:1}};}};},async batch(rows){batches.push(rows);}};
+function load(file){const mod={exports:{}};new Function("require","module","exports",ts.transpileModule(fs.readFileSync(file,"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>name==="cloudflare:workers"?{env:{DB}}:name.endsWith("chatgpt-auth")?{getChatGPTUser:async()=>signedIn?{id:"user"}:null}:name.endsWith("lib/ai")?{AIServiceError,aiResponse:async()=>{aiCalls++;return JSON.stringify(generated);}}:load(path.resolve(path.dirname(file),name+".ts")),mod,mod.exports);return mod.exports;}
+const m=load("lib/marketing.ts"),api=load("app/api/marketing/route.ts");
+const post={title:"Business card essentials",service:m.marketingServices[0],date:"2026-09-28",channel:"Instagram",format:"Carousel",caption:"A clear call to action",brief:"Three slides",campaign:"Print essentials",status:"Draft"};
+const request=body=>new Request("https://test/api/marketing",{method:"POST",body:JSON.stringify(body)});
+(async()=>{
+assert.ok(m.parseMarketingPost(post));assert.equal(m.parseMarketingPost({...post,date:"2026-02-30"}),null);assert.equal(m.parseMarketingPost({...post,service:"Invented"}),null);assert.equal(m.parseMarketingPost({...post,status:"Scheduled"}),null);
+const days=m.calendarDays("2026-09");assert.equal(days.length,42);assert.equal(days[0],"2026-08-31");assert.equal(new Set(days).size,42);
+signedIn=false;assert.equal((await api.POST(request({posts:[post]}))).status,401);assert.equal((await api.GET()).status,401);signedIn=true;
+assert.equal((await api.POST(request({posts:[post,{...post,channel:"Unsupported"}]}))).status,400);assert.equal(batches.length,0);
+assert.equal((await api.POST(request({posts:[post]}))).status,201);assert.equal(batches.length,1);assert.ok(binds.some(b=>b.values.includes("Print essentials")));
+const brief={mode:"generate",services:[post.service],channel:"Instagram",startDate:"2026-09-28",count:1,goal:"Drive enquiries",audience:"Businesses",tone:"Friendly",campaign:"Print essentials"};generated={posts:[post]};assert.equal((await api.POST(request(brief))).status,200);assert.equal(batches.length,1,"Generation must not save without review");
+generated={posts:[{...post,date:"2026-10-06"}]};assert.equal((await api.POST(request(brief))).status,503);assert.equal((await api.POST(request({...brief,count:9}))).status,400);assert.equal(aiCalls,2);
+assert.equal((await api.PATCH(request({id:"p1",post:{...post,status:"Ready"}}))).status,200);assert.equal((await api.DELETE(new Request("https://test/api/marketing?id=p1",{method:"DELETE"}))).status,200);
+console.log("Marketing checks passed: auth, atomic save validation, catalogue, dates, calendar, AI review flow, update and delete.");
+})().catch(e=>{console.error(e);process.exit(1);});

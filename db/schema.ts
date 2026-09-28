@@ -93,3 +93,18 @@ export const financeBudgets = sqliteTable("finance_budgets", {
   expenseLimit: text("expense_limit").notNull().default("0"),
   updatedAt: integer("updated_at").notNull(),
 }, table => [uniqueIndex("idx_finance_budgets_month_currency").on(table.month, table.currency)]);
+
+export const marketingPosts = sqliteTable("marketing_posts", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  service: text("service").notNull().default(""),
+  date: text("date").notNull(),
+  channel: text("channel").notNull(),
+  format: text("format").notNull(),
+  caption: text("caption").notNull().default(""),
+  brief: text("brief").notNull().default(""),
+  campaign: text("campaign").notNull().default(""),
+  status: text("status").notNull().default("Draft"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, table => [index("idx_marketing_posts_date").on(table.date)]);
