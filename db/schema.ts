@@ -95,6 +95,11 @@ export const financeBudgets = sqliteTable("finance_budgets", {
 }, table => [uniqueIndex("idx_finance_budgets_month_currency").on(table.month, table.currency)]);
 
 export const marketingPosts = sqliteTable("marketing_posts", {
+  time: text("time").notNull().default(""),
+  pillar: text("pillar").notNull().default(""),
+  message: text("message").notNull().default(""),
+  purpose: text("purpose").notNull().default(""),
+  hashtag: text("hashtag").notNull().default(""),
   id: text("id").primaryKey(),
   title: text("title").notNull(),
   service: text("service").notNull().default(""),
