@@ -4,6 +4,8 @@ import { AIServiceError, aiResponse, base64Data } from "../../../lib/ai";
 import { financialSummary, validMoney } from "../../../lib/finance";
 import { serviceGroups } from "../../../lib/services";
 
+import { autoTasks } from "../../../lib/auto-tasks";
+
 export const runtime = "edge";
 
 type WorkItem = { id: string; kind: string; title: string; client: string; service: string; status: string; due_date: string; notes: string; amount: string; currency: string; direction: string; price: string; cost: string; project_id: string | null; vendor_id: string | null; created_at: number; updated_at: number };
@@ -120,7 +122,9 @@ async function createOrder(summary: string) {
   if (client) statements.push(env.DB!.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT ?, 'customer', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND TRIM(name) = ? COLLATE NOCASE)")
     .bind(crypto.randomUUID(), client, now, now, client));
   await env.DB!.batch(statements);
-  return Response.json({ id, title, client, service, dueDate, price, cost, currency, warnings }, { status: 201 });
+  const tasks = await autoTasks("order",id);
+  if (tasks.state === "Failed") warnings.push("Order saved. AI tasks could not be added; retry from Tasks.");
+  return Response.json({ id, title, client, service, dueDate, price, cost, currency, warnings, tasks }, { status: 201 });
 }
 
 export async function POST(request: Request) {

@@ -6,6 +6,8 @@ import { parseFinanceDetails } from "../../../../lib/finance-reports";
 
 import { parseOrderCosts, costTotal } from "../../../../lib/order-costs";
 
+import { autoTasks } from "../../../../lib/auto-tasks";
+
 export const runtime = "edge";
 
 const statuses: Record<string, string[]> = {
@@ -54,7 +56,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         await env.DB!.batch(statements);
         return Response.json({ ok: true });
       }
-      if (item.kind !== "lead" && item.kind !== "project" && item.kind !== "booking") return Response.json({ error: "This record cannot be edited here." }, { status: 400 });
+      if (item.kind !== "lead" && item.kind !== "project" && item.kind !== "booking" && item.kind !== "task") return Response.json({ error: "This record cannot be edited here." }, { status: 400 });
       const title = String(input.title ?? "").trim();
       const client = String(input.client ?? "").trim();
       const service = String(input.service ?? "").trim();
@@ -87,7 +89,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         if (client) statements.push(customerInsert(client, now));
         await env.DB!.batch(statements);
       }
-      return Response.json({ ok: true });
+      const tasks = ["project","booking"].includes(item.kind) ? await autoTasks("order",id) : undefined;
+      return Response.json({ ok: true, tasks });
     }
     const status = String(input.status ?? "");
     if (!statuses[item.kind]?.includes(status)) return Response.json({ error: "Invalid status" }, { status: 400 });
@@ -113,6 +116,8 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     const leadAssets = await env.DB!.prepare("SELECT object_key FROM lead_assets WHERE lead_id = ?").bind(id).all<{ object_key: string }>();
     const projectAssets = await env.DB!.prepare("SELECT object_key FROM project_assets WHERE project_id = ?").bind(id).all<{ object_key: string }>();
     await env.DB!.batch([
+      env.DB!.prepare("UPDATE work_items SET task_source_id = NULL WHERE task_source_kind = 'order' AND task_source_id = ?").bind(id),
+      env.DB!.prepare("DELETE FROM task_generations WHERE source_key = ?").bind(`order:${id}`),
       env.DB!.prepare("UPDATE work_items SET source_lead_id = NULL WHERE source_lead_id = ?").bind(id),
       env.DB!.prepare("UPDATE work_items SET project_id = NULL WHERE project_id = ?").bind(id),
       env.DB!.prepare("DELETE FROM work_items WHERE id = ?").bind(id),

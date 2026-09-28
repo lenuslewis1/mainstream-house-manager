@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 
+import { autoTasks } from "../../../../../lib/auto-tasks";
+
 export const runtime = "edge";
 
 type Lead = { id: string; title: string; client: string; service: string; notes: string; status: string };
@@ -21,7 +23,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         .bind(projectId, lead.title, lead.client, lead.service, lead.notes, id, now, now),
       env.DB.prepare("UPDATE work_items SET status = 'Won', updated_at = ? WHERE id = ? AND kind = 'lead'").bind(now, id),
     ]);
-    return Response.json({ id: projectId }, { status: 201 });
+    const tasks = await autoTasks("order",projectId);
+    return Response.json({ id: projectId, tasks }, { status: 201 });
   } catch (error) {
     console.error("Unable to convert lead", error);
     return Response.json({ error: "Could not create the order. Please try again." }, { status: 503 });

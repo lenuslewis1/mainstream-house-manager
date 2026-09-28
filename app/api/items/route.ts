@@ -6,6 +6,8 @@ import { parseFinanceDetails } from "../../../lib/finance-reports";
 
 import { parseOrderCosts, costTotal } from "../../../lib/order-costs";
 
+import { autoTasks } from "../../../lib/auto-tasks";
+
 export const runtime = "edge";
 
 const statuses: Record<string, string[]> = {
@@ -68,7 +70,8 @@ export async function POST(request: Request) {
     if (client) statements.push(env.DB!.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT ?, 'customer', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND TRIM(name) = ? COLLATE NOCASE)")
       .bind(crypto.randomUUID(), client, now, now, client));
     await env.DB!.batch(statements);
-    return Response.json({ id }, { status: 201 });
+    const tasks = ["project","booking"].includes(kind) ? await autoTasks("order",id) : undefined;
+    return Response.json({ id, tasks }, { status: 201 });
   } catch (error) {
     console.error("Unable to save work item", error);
     return Response.json({ error: "Could not save. Please try again." }, { status: 503 });

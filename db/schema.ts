@@ -18,12 +18,15 @@ export const workItems = sqliteTable("work_items", {
   projectId: text("project_id"),
   vendorId: text("vendor_id"),
   sourceLeadId: text("source_lead_id"),
+  taskSourceKind: text("task_source_kind").notNull().default(""),
+  taskSourceId: text("task_source_id"),
+  taskKey: text("task_key"),
   category: text("category").notNull().default(""),
   paymentMethod: text("payment_method").notNull().default(""),
   reference: text("reference").notNull().default(""),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
-}, table => [uniqueIndex("idx_work_items_source_lead_id").on(table.sourceLeadId), index("idx_work_items_project_id").on(table.projectId), index("idx_work_items_vendor_id").on(table.vendorId)]);
+}, table => [uniqueIndex("idx_work_items_source_lead_id").on(table.sourceLeadId), index("idx_work_items_project_id").on(table.projectId), index("idx_work_items_vendor_id").on(table.vendorId), uniqueIndex("idx_work_items_task_key").on(table.taskKey)]);
 
 export const leadAssets = sqliteTable("lead_assets", {
   id: text("id").primaryKey(),
@@ -113,3 +116,14 @@ export const marketingPosts = sqliteTable("marketing_posts", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, table => [index("idx_marketing_posts_date").on(table.date)]);
+
+export const taskGenerations = sqliteTable("task_generations", {
+  sourceKey: text("source_key").primaryKey(),
+  sourceKind: text("source_kind").notNull(),
+  sourceId: text("source_id").notNull(),
+  sourceTitle: text("source_title").notNull(),
+  status: text("status").notNull(),
+  error: text("error").notNull().default(""),
+  runId: text("run_id").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});

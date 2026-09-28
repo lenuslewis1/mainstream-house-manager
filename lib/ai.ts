@@ -11,7 +11,7 @@ export async function aiResponse(instructions: string, content: string | InputPa
   const key = env.OPENAI_API_KEY;
   if (!key) throw new AIServiceError("AI is not configured yet. Please contact the workspace owner.");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45000);
+  const timer = setTimeout(() => controller.abort(), schema?.name === "source_tasks" ? 25000 : 45000);
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -22,7 +22,7 @@ export async function aiResponse(instructions: string, content: string | InputPa
         reasoning: { effort: "none" },
         instructions,
         input: [{ role: "user", content }],
-        max_output_tokens: schema?.name === "marketing_plan" ? 6000 : schema?.name === "form_fields" ? 3000 : schema ? 1200 : 1400,
+        max_output_tokens: schema?.name === "source_tasks" ? 2000 : schema?.name === "marketing_plan" ? 6000 : schema?.name === "form_fields" ? 3000 : schema ? 1200 : 1400,
         ...(schema ? { text: { format: { type: "json_schema", ...schema } } } : {}),
       }),
       signal: controller.signal,
