@@ -215,3 +215,7 @@ td{border-color:#f2eaf3;color:#6a5b70}
 
 .fin-row-actions button:disabled{cursor:not-allowed;opacity:.5}
 .fin-settled{align-self:center;color:#28744d;font-size:11px;font-weight:700}
+
+.fin-metric-row{display:block;width:100%;padding:8px;border:1px solid transparent;border-radius:8px;background:transparent;text-align:left;cursor:pointer}
+.fin-metric-row:hover{background:#fcf5fa;border-color:#f0deea}
+.fin-metric-row:focus-visible{outline:2px solid #d83088;outline-offset:2px}
