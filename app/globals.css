@@ -184,3 +184,21 @@ td{border-color:#f2eaf3;color:#6a5b70}
 .marketing-content-modal{width:min(760px,calc(100vw - 28px));max-height:calc(100dvh - 28px);margin:auto;padding:24px;border:1px solid #e9ddeb;color:#281435;overflow-y:auto;box-shadow:0 28px 90px #24133140}.marketing-content-modal::backdrop{background:#24133199;backdrop-filter:blur(3px)}.marketing-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.marketing-modal-head h2{margin-bottom:18px}.marketing-idea{padding:16px;background:#fcf2f8;border:1px solid #f6d6e7;border-radius:10px;display:grid;gap:12px;margin-bottom:18px}.marketing-idea p{font-size:12px;margin:0;line-height:1.5}.marketing-content-fields{border:0;padding:0;margin:0;min-width:0}.marketing-date-posts{display:grid;gap:8px;margin-bottom:16px}.marketing-date-posts>span{font-size:12px;color:#86728e}.marketing-date-posts .marketing-actions{flex-wrap:nowrap;overflow:auto;padding-bottom:6px}.marketing-date-posts button{white-space:nowrap;max-width:280px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis}.marketing-extra{border-top:1px solid #e9ddeb;padding-top:14px}.marketing-extra summary{cursor:pointer;font-size:12px;color:#86728e}.marketing-content-modal .modal-actions{position:sticky;bottom:-24px;background:#fff;padding-bottom:16px;z-index:1}@media(max-width:600px){.marketing-content-modal{padding:16px}.marketing-content-modal .modal-actions{bottom:-16px}.marketing-modal-head h2{font-size:19px}}
 
 .task-automation{background:#fff;border:1px solid #e9ddeb;border-radius:12px;padding:20px;margin-bottom:20px}.task-automation h2{font-size:17px;display:flex;align-items:center;gap:8px;margin:0 0 8px}.task-automation p{font-size:12px;color:#86728e;line-height:1.6}.task-generation-job{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid #e9ddeb;padding:12px 0}.task-generation-job small{display:block;color:#86728e;margin-top:6px}@media(max-width:600px){.task-automation .finance-heading{flex-wrap:wrap;gap:12px}}
+
+.fin-summary-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.fin-metric-chart{display:grid;align-content:start;gap:12px}
+.fin-metric-chart h3{margin:0 0 6px}
+.fin-metric-list{display:grid;gap:20px}
+.fin-metric-row{min-width:0}
+.fin-metric-meta{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px;color:#725d7e;font-size:13px}
+.fin-metric-meta strong{color:#291534;font-size:16px;letter-spacing:-.3px;white-space:nowrap}
+.fin-metric-track{height:15px;background:#f2edf4;border-radius:20px;overflow:hidden}
+.fin-metric-bar{display:block;height:100%;border-radius:20px}
+.fin-metric-revenue{background:#d83088}
+.fin-metric-expenses{background:#9c7ab2}
+.fin-metric-profit{background:#291534}
+.fin-metric-negative{background:#b92b58}
+.fin-metric-chart .fin-caption{margin-top:2px}
+@media(max-width:900px){.fin-summary-charts{grid-template-columns:1fr}}
+@media(max-width:520px){.fin-metric-chart{padding:18px}.fin-metric-meta{font-size:12px}.fin-metric-meta strong{font-size:14px}}
+@media print{.fin-metric-bar{print-color-adjust:exact}}
