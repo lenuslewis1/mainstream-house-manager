@@ -219,3 +219,5 @@ td{border-color:#f2eaf3;color:#6a5b70}
 .fin-metric-row{display:block;width:100%;padding:8px;border:1px solid transparent;border-radius:8px;background:transparent;text-align:left;cursor:pointer}
 .fin-metric-row:hover{background:#fcf5fa;border-color:#f0deea}
 .fin-metric-row:focus-visible{outline:2px solid #d83088;outline-offset:2px}
+
+.fin-simple-summary{display:grid;gap:16px}.fin-estimates{border:1px solid #eee3f0;border-radius:12px;padding:16px;background:#fff}.fin-estimates summary{cursor:pointer;font-weight:600;color:#6a5b70}.fin-estimates[open] summary{margin-bottom:12px}.fin-explainer{padding:16px;border-radius:10px;background:#f6edf5;color:#4a3155;font-size:14px;line-height:1.6}
