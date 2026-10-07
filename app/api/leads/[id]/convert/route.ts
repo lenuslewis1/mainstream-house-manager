@@ -16,6 +16,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     if (!lead) return Response.json({ error: "Lead not found" }, { status: 404 });
     const existing = await env.DB.prepare("SELECT id FROM work_items WHERE kind = 'project' AND source_lead_id = ?").bind(id).first<{ id: string }>();
     if (existing) return Response.json({ id: existing.id, alreadyConverted: true });
+    if (!lead.service?.trim()) return Response.json({ error: "Assign a service to this lead before converting it to an order." }, { status: 400 });
     const projectId = crypto.randomUUID();
     const now = Date.now();
     await env.DB.batch([

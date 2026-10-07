@@ -37,7 +37,7 @@ export async function POST(request: Request) {
   const title = String(input.title ?? "").trim();
   const status = String(input.status ?? "");
   const client = String(input.client ?? "").trim();
-  const service = String(input.service ?? "");
+  const service = String(input.service ?? "").trim();
   const dueDate = String(input.dueDate ?? "");
   const notes = String(input.notes ?? "").trim();
   const amount = String(input.amount ?? "").trim();
@@ -49,7 +49,8 @@ export async function POST(request: Request) {
   const cost = input.costItems === undefined ? String(input.cost ?? "0").trim() : costTotal(costItems);
   const projectId = String(input.projectId ?? "").trim();
   const vendorId = String(input.vendorId ?? "").trim();
-  if (!statuses[kind] || !title || title.length > 160 || !statuses[kind].includes(status) || (kind === "lead" && status === "Won") || client.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (kind === "booking" && !dueDate) || (["project", "booking"].includes(kind) && (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency))) || (kind === "finance" && (!validMoney(amount) || !/^[A-Z]{3}$/.test(currency) || !["Income", "Expense"].includes(direction)))) {
+  if (["project", "booking"].includes(kind) && !service) return Response.json({ error: "Choose a service for this order." }, { status: 400 });
+  if (!statuses[kind] || !title || title.length > 160 || !statuses[kind].includes(status) || (kind === "lead" && status === "Won") || client.length > 160 || service.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (kind === "booking" && !dueDate) || (["project", "booking"].includes(kind) && (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency))) || (kind === "finance" && (!validMoney(amount) || !/^[A-Z]{3}$/.test(currency) || !["Income", "Expense"].includes(direction)))) {
     return Response.json({ error: "Check the required fields." }, { status: 400 });
   }
   const details = parseFinanceDetails(input);

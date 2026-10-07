@@ -63,6 +63,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const dueDate = String(input.dueDate ?? "");
       const notes = String(input.notes ?? "").trim();
       const vendorId = String(input.vendorId ?? "").trim();
+      if ((item.kind === "project" || item.kind === "booking") && !service) return Response.json({ error: "Choose a service for this order." }, { status: 400 });
       if (!title || title.length > 160 || client.length > 160 || service.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || (item.kind === "booking" && !dueDate)) {
         return Response.json({ error: "Check the required fields." }, { status: 400 });
       }

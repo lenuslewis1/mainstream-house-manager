@@ -106,6 +106,7 @@ async function createOrder(summary: string) {
   if (!title) return Response.json({ error: "Please include what needs to be ordered in the summary." }, { status: 422 });
   const client = string(extracted.client, 160);
   const service = services.find(option => option.toLowerCase() === string(extracted.service).toLowerCase()) || "";
+  if (!service) return Response.json({ error: "I could not identify a service for this order. Include one of your services in the summary and try again." }, { status: 422 });
   const dueDate = dateIsValid(string(extracted.dueDate)) ? string(extracted.dueDate) : "";
   const parsedPrice = extractedMoney(extracted.price);
   const parsedCost = extractedMoney(extracted.cost);
