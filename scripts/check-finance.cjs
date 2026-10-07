@@ -9,5 +9,9 @@ const [b]=reports.orderBalances(entries,"GHS");assert.equal(b.balance,70000);ass
 const [over]=reports.orderBalances([...entries,{...base,id:"extra",kind:"finance",direction:"Income",amount:"800",project_id:"o"},{...base,id:"extra-cost",kind:"finance",direction:"Expense",amount:"500",project_id:"o"}],"GHS");assert.equal(over.balance,0);assert.equal(over.credit,10000);assert.equal(over.variance,-10000);
 assert.equal(reports.inPeriod(order,"2026-09-01","2026-09-01"),true);assert.equal(reports.inPeriod(entries[1],"2026-09-01","2026-09-01"),false);
 assert.equal(reports.parseFinanceDetails({category:"Made up"}),null);assert.equal(reports.parseFinanceDetails({paymentMethod:"Cash",reference:"Ref-1"}).reference,"Ref-1");
+for (const category of ["Salary","Allowance"]) assert.equal(reports.parseFinanceDetails({category})?.category,category);
+const payroll=[...entries,{...base,id:"salary",kind:"finance",direction:"Expense",category:"Salary",amount:"100"},{...base,id:"allowance",kind:"finance",direction:"Expense",category:"Allowance",amount:"25"}];
+assert.equal(finance.financialSummary(payroll,"GHS").expenses,77500);
+assert.equal(finance.totals(payroll).expenses,37500);
 const csv=reports.csvText([["=HYPERLINK(x)","name,with comma",'-25.00', 'A"B']]);assert.ok(csv.includes("'=HYPERLINK"));assert.ok(csv.includes('"-25.00"'));assert.ok(csv.includes('"A""B"'));
 console.log("Finance checks passed: no double counting, currency separation, deposits, pending exclusions, customer credit, budget overruns, date basis, metadata, and safe CSV.");

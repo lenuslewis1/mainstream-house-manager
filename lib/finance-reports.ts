@@ -1,5 +1,5 @@
 import { cents, totals, type FinanceRecord } from "./finance";
-export const financeCategories = ["Sales", "Printing & production", "Materials", "Delivery", "Design & technology", "Marketing", "Rent & utilities", "Staff", "Fees", "Other"];
+export const financeCategories = ["Sales", "Printing & production", "Materials", "Delivery", "Design & technology", "Marketing", "Rent & utilities", "Salary", "Allowance", "Staff", "Fees", "Other"];
 export const paymentMethods = ["Cash", "Mobile money", "Bank transfer", "Card", "Other"];
 export type ReportRecord = FinanceRecord & { id: string; title: string; client: string; due_date: string; created_at: number; category?: string; payment_method?: string; reference?: string; vendor_id?: string | null; notes: string; service: string };
 export function recordDate(record: Pick<ReportRecord, "due_date" | "created_at" | "kind">) { return record.kind === "finance" && record.due_date ? record.due_date : new Date(record.created_at).toISOString().slice(0,10); }

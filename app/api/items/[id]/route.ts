@@ -52,7 +52,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const now = Date.now();
         const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, notes = ?, due_date = ?, amount = ?, currency = ?, direction = ?, project_id = ?, updated_at = ?, category = ?, payment_method = ?, reference = ? WHERE id = ?")
           .bind(title, client, notes, dueDate, amount, currency, direction, projectId || null, now, details.category, details.paymentMethod, details.reference, id)];
-        if (client) statements.push(customerInsert(client, now));
+        if (client && direction === "Income") statements.push(customerInsert(client, now));
         await env.DB!.batch(statements);
         return Response.json({ ok: true });
       }

@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
     const statements = [env.DB!.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, vendor_id, created_at, updated_at, category, payment_method, reference, cost_items) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", ["finance", "project", "booking"].includes(kind) ? currency : "", kind === "finance" ? direction : "", ["project", "booking"].includes(kind) ? price : "0", ["project", "booking"].includes(kind) ? cost : "0", kind === "finance" && projectId ? projectId : null, vendorId || null, now, now, kind === "finance" ? details?.category || "" : "", kind === "finance" ? details?.paymentMethod || "" : "", kind === "finance" ? details?.reference || "" : "", JSON.stringify(["project", "booking"].includes(kind) ? costItems : []))];
-    if (client) statements.push(env.DB!.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT ?, 'customer', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND TRIM(name) = ? COLLATE NOCASE)")
+    if (client && !(kind === "finance" && direction === "Expense")) statements.push(env.DB!.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT ?, 'customer', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND TRIM(name) = ? COLLATE NOCASE)")
       .bind(crypto.randomUUID(), client, now, now, client));
     await env.DB!.batch(statements);
     const tasks = ["project","booking"].includes(kind) ? await autoTasks("order",id) : undefined;
