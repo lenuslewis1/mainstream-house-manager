@@ -8,7 +8,9 @@ export function orderBalances(records: ReportRecord[], currency: string) {
   return records.filter(record => ["project","booking"].includes(record.kind) && (record.currency || "GHS") === currency).map(order => {
     const linked = records.filter(record => record.kind === "finance" && record.project_id === order.id && (record.currency || "GHS") === currency);
     const paid = totals(linked), price = cents(order.price), cost = cents(order.cost);
-    return { order, price, cost, received: paid.revenue, paid: paid.expenses, balance: Math.max(0,price-paid.revenue), credit: Math.max(0,paid.revenue-price), costRemaining: Math.max(0,cost-paid.expenses), variance: cost-paid.expenses, profit: price-cost, pendingIncome: paid.pendingIncome, pendingExpenses: paid.pendingExpenses };
+    const paymentCount = linked.filter(record => record.direction === "Income").length;
+    const pendingPaymentCount = linked.filter(record => record.direction === "Income" && record.status === "Pending").length;
+    return { order, price, cost, received: paid.revenue, paid: paid.expenses, balance: Math.max(0,price-paid.revenue), credit: Math.max(0,paid.revenue-price), costRemaining: Math.max(0,cost-paid.expenses), variance: cost-paid.expenses, profit: price-cost, pendingIncome: paid.pendingIncome, pendingExpenses: paid.pendingExpenses, paymentCount, pendingPaymentCount };
   });
 }
 export function csvText(rows: unknown[][]) { return "\uFEFF" + rows.map(row => row.map(value => { let text = String(value ?? ""); if ((/^[\s]*[=+@]/.test(text) || (/^[\s]*-/.test(text) && !/^-\d+(?:\.\d+)?$/.test(text)))) text = "'" + text; return `"${text.replaceAll('"','""')}"`; }).join(",")).join("\r\n"); }

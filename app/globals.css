@@ -212,3 +212,6 @@ td{border-color:#f2eaf3;color:#6a5b70}
 .fin-chart-scroll .fin-chart{margin-top:20px}
 @media(max-width:700px){.fin-chart-head{align-items:flex-start;flex-direction:column}.fin-range{justify-content:flex-start}}
 @media print{.fin-chart-scroll{overflow:visible}.fin-chart-scroll .fin-chart{min-width:0!important}}
+
+.fin-row-actions button:disabled{cursor:not-allowed;opacity:.5}
+.fin-settled{align-self:center;color:#28744d;font-size:11px;font-weight:700}
