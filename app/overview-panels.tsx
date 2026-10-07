@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { financialSummary, money } from "../lib/finance";
+import { recordDate } from "../lib/finance-reports";
 import type { CalendarItem, Deliverable } from "../lib/calendar-types";
 
 type OverviewItem = CalendarItem & { amount: string; currency: string; direction: string; price: string; cost: string; project_id: string | null; created_at: number };
@@ -33,11 +34,9 @@ export default function OverviewPanels({ items, deliverables, loading, onOpenCal
   const months = Array.from({ length: 6 }, (_, index) => new Date(new Date().getFullYear(), new Date().getMonth() - 5 + index, 1));
   const monthly = months.map(date => {
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const ordersInMonth = orders.filter(item => (item.currency || "GHS") === currency && dateKey(new Date(item.created_at)).startsWith(key));
-    const generalInMonth = items.filter(item => item.kind === "finance" && !item.project_id && item.status === "Completed" && (item.currency || "GHS") === currency && (item.due_date || dateKey(new Date(item.created_at))).startsWith(key));
-    const monthItems = [...ordersInMonth, ...generalInMonth];
-    const monthTotals = financialSummary(monthItems, currency);
-    return { key, label: date.toLocaleDateString(undefined, { month: "short" }), count: monthItems.length, income: monthTotals.revenue, expenses: monthTotals.expenses };
+    const cashInMonth = items.filter(item => item.kind === "finance" && item.status === "Completed" && (item.currency || "GHS") === currency && recordDate(item).startsWith(key));
+    const monthTotals = financialSummary(cashInMonth, currency);
+    return { key, label: date.toLocaleDateString(undefined, { month: "short" }), count: cashInMonth.length, income: monthTotals.revenue, expenses: monthTotals.expenses };
   });
   const ceiling = Math.max(1, ...monthly.flatMap(row => [row.income, row.expenses]));
   const hasChartData = monthly.some(row => row.count > 0);
@@ -53,13 +52,13 @@ export default function OverviewPanels({ items, deliverables, loading, onOpenCal
           <div><span>Expenses</span><strong>{money(finance.expenses, currency)}</strong></div>
           <div><span>Profit</span><strong>{money(finance.profit, currency)}</strong></div>
         </div>
-        <p className="overview-caption">Revenue includes order prices and completed general income. Expenses include order costs and completed general expenses.</p>
-        {finance.linkedEntryCount > 0 && <p className="overview-caption overview-payment-caption">Order payments: {money(finance.received, currency)} received · {money(finance.paid, currency)} paid</p>}
+        <p className="overview-caption">Revenue is completed cash received. Expenses are completed cash payouts, including production costs, salary and allowance. Order prices and cost budgets are estimates.</p>
+        {finance.linkedEntryCount > 0 && <p className="overview-caption overview-payment-caption">Order-linked payments: {money(finance.linkedReceived, currency)} received · {money(finance.linkedPaid, currency)} paid</p>}
         {(finance.pendingIncome > 0 || finance.pendingExpenses > 0) && <p className="overview-caption overview-payment-caption">Pending, excluded from totals: {money(finance.pendingIncome, currency)} income · {money(finance.pendingExpenses, currency)} expenses</p>}
-        <p className="overview-caption overview-chart-caption">Order totals and completed general records · last 6 months · {currency}</p>
-        {hasChartData ? <><div className="overview-chart" role="img" aria-label={`Monthly order revenue and costs in ${currency}. ${monthly.map(row => `${row.label}: revenue ${money(row.income, currency)}, costs ${money(row.expenses, currency)}`).join("; ")}`}>
-          {monthly.map(row => <div className="overview-month" key={row.key}><div className="overview-bar-pair"><div className="overview-bar income" style={{height: `${row.income ? Math.max(4, row.income / ceiling * 100) : 0}%`}} title={`${row.label} revenue: ${money(row.income, currency)}`}/><div className="overview-bar expense" style={{height: `${row.expenses ? Math.max(4, row.expenses / ceiling * 100) : 0}%`}} title={`${row.label} costs: ${money(row.expenses, currency)}`}/></div><span>{row.label}</span></div>)}
-        </div><div className="overview-chart-legend"><span><i className="income"/> Revenue</span><span><i className="expense"/> Expenses</span></div></> : <p className="overview-empty">No orders or completed general records in the last six months. All-time totals appear above.</p>}
+        <p className="overview-caption overview-chart-caption">Completed cash receipts and payouts · last 6 months · {currency}</p>
+        {hasChartData ? <><div className="overview-chart" role="img" aria-label={`Monthly cash revenue and expenses in ${currency}. ${monthly.map(row => `${row.label}: revenue ${money(row.income, currency)}, expenses ${money(row.expenses, currency)}`).join("; ")}`}>
+          {monthly.map(row => <div className="overview-month" key={row.key}><div className="overview-bar-pair"><div className="overview-bar income" style={{height: `${row.income ? Math.max(4, row.income / ceiling * 100) : 0}%`}} title={`${row.label} revenue: ${money(row.income, currency)}`}/><div className="overview-bar expense" style={{height: `${row.expenses ? Math.max(4, row.expenses / ceiling * 100) : 0}%`}} title={`${row.label} expenses: ${money(row.expenses, currency)}`}/></div><span>{row.label}</span></div>)}
+        </div><div className="overview-chart-legend"><span><i className="income"/> Revenue</span><span><i className="expense"/> Expenses</span></div></> : <p className="overview-empty">No completed cash transactions in the last six months. All-time totals appear above.</p>}
       </> : <p className="overview-empty">Add an order or finance entry to see financial totals here.</p>}
       <button className="overview-panel-link" onClick={onOpenFinance}>View finances <ArrowRight size={16}/></button>
     </section>

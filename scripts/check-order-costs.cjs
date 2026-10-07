@@ -3,5 +3,5 @@ function load(file){const mod={exports:{}};new Function("require","module","expo
 const {parseOrderCosts,costTotal,savedOrderCosts}=load("lib/order-costs.ts"),{financialSummary}=load("lib/finance.ts");
 const lines=parseOrderCosts([{description:"Printing",amount:"100.10"},{description:"Delivery",amount:"20.20"}]);assert.equal(costTotal(lines),"120.30");
 assert.equal(parseOrderCosts([{description:"",amount:"1"}]),null);assert.equal(parseOrderCosts([{description:"Bad",amount:"-1"}]),null);assert.equal(parseOrderCosts([{description:"Bad",amount:"1.234"}]),null);assert.equal(costTotal([]),"0.00");assert.equal(savedOrderCosts("[]","75")[0].amount,"75");assert.deepEqual(savedOrderCosts(JSON.stringify(lines),"120.30"),lines);
-const s=financialSummary([{kind:"project",status:"Planning",direction:"",amount:"",currency:"GHS",price:"200",cost:costTotal(lines)}],"GHS");assert.equal(s.expenses,12030);assert.equal(s.profit,7970);
+const s=financialSummary([{kind:"project",status:"Planning",direction:"",amount:"",currency:"GHS",price:"200",cost:costTotal(lines)}],"GHS");assert.equal(s.revenue,0);assert.equal(s.expenses,0);assert.equal(s.profit,0);assert.equal(s.orderRevenue,20000);assert.equal(s.orderExpenses,12030);
 console.log("Order cost checks passed: exact totals, validation, legacy costs and finance integration.");
