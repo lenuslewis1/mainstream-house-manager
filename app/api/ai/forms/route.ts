@@ -22,7 +22,7 @@ const allowed: Record<string, string[]> = {
   deliverable: ["title", "dueDate", "status", "notes"],
   invoice: ["billToName", "billToDetails", "issueDate", "dueDate", "lineItems", "paymentDetails"],
 };
-const statuses: Record<string, string[]> = { lead: ["New", "Contacted", "Proposal sent", "Lost"], project: ["Planning", "In progress", "In review", "Delivered", "On hold"], booking: ["Requested", "Confirmed", "Completed", "Cancelled"], task: ["To do", "In progress", "Done"], finance: ["Pending", "Completed"], deliverable: ["Planned", "In progress", "Done"] };
+const statuses: Record<string, string[]> = { lead: ["New", "Contacted", "Proposal sent", "Lost"], project: ["Planning", "In progress", "In review", "Delivered", "On hold"], booking: ["Requested", "Confirmed", "Completed", "Cancelled"], task: ["To do", "On hold", "Blocked", "In progress", "Review", "Done"], finance: ["Pending", "Completed"], deliverable: ["Planned", "In progress", "Done"] };
 export async function POST(request: Request) {
   if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
   const input = await request.json().catch(() => null) as { kind?: unknown; prompt?: unknown; keys?: unknown; context?: unknown } | null;

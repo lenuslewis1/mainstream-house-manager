@@ -13,7 +13,7 @@ export const runtime = "edge";
 const statuses: Record<string, string[]> = {
   lead: ["New", "Contacted", "Proposal sent", "Won", "Lost"],
   project: ["Planning", "In progress", "In review", "Delivered", "On hold"],
-  task: ["To do", "In progress", "Done"],
+  task: ["To do", "On hold", "Blocked", "In progress", "Review", "Done"],
   booking: ["Requested", "Confirmed", "Completed", "Cancelled"],
   finance: ["Pending", "Completed"],
 };

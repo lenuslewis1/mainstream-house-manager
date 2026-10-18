@@ -49,3 +49,4 @@ next-env.d.ts
 /site-deploy.tar.gz
 
 /tmp/
+/.playwright-cli/

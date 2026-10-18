@@ -21,6 +21,10 @@ export const workItems = sqliteTable("work_items", {
   taskSourceKind: text("task_source_kind").notNull().default(""),
   taskSourceId: text("task_source_id"),
   taskKey: text("task_key"),
+  taskAssignee: text("task_assignee").notNull().default(""),
+  taskPriority: text("task_priority").notNull().default("Normal"),
+  taskChecklist: text("task_checklist").notNull().default("[]"),
+  taskLabels: text("task_labels").notNull().default(""),
   category: text("category").notNull().default(""),
   paymentMethod: text("payment_method").notNull().default(""),
   reference: text("reference").notNull().default(""),
@@ -127,3 +131,12 @@ export const taskGenerations = sqliteTable("task_generations", {
   runId: text("run_id").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const taskUpdates = sqliteTable("task_updates", {
+ id: text("id").primaryKey(),
+ taskId: text("task_id").notNull().references(()=>workItems.id,{onDelete:"cascade"}),
+ author: text("author").notNull(),
+ body: text("body").notNull(),
+ kind: text("kind").notNull(),
+ createdAt: integer("created_at").notNull(),
+},table=>[index("idx_task_updates_task").on(table.taskId,table.createdAt)]);

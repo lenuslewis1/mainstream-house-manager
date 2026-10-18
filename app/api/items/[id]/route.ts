@@ -13,7 +13,7 @@ export const runtime = "edge";
 const statuses: Record<string, string[]> = {
   lead: ["New", "Contacted", "Proposal sent", "Won", "Lost"],
   project: ["Planning", "In progress", "In review", "Delivered", "On hold"],
-  task: ["To do", "In progress", "Done"],
+  task: ["To do", "On hold", "Blocked", "In progress", "Review", "Done"],
   booking: ["Requested", "Confirmed", "Completed", "Cancelled"],
   finance: ["Pending", "Completed"],
 };
@@ -24,7 +24,8 @@ function customerInsert(client: string, now: number) {
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
+  const actor=await getChatGPTUser();
+  if (!actor) return Response.json({ error: "Sign in required" }, { status: 401 });
   const { id } = await params;
   const input = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!input || typeof input !== "object") return Response.json({ error: "Invalid request" }, { status: 400 });
@@ -88,6 +89,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, updated_at = ? WHERE id = ?")
           .bind(title, client, service, dueDate, notes, now, id)];
         if (client) statements.push(customerInsert(client, now));
+        if (item.kind === "task") statements.push(env.DB!.prepare("INSERT INTO task_updates(id,task_id,author,body,kind,created_at) VALUES(?,?,?,?,'activity',?)").bind(crypto.randomUUID(),id,actor.displayName,"Updated task details",now));
         await env.DB!.batch(statements);
       }
       const tasks = ["project","booking"].includes(item.kind) ? await autoTasks("order",id) : undefined;
@@ -102,7 +104,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (item.kind === "lead" && status === "Won") {
       return Response.json({ error: "Use Convert to project to mark this lead Won." }, { status: 409 });
     }
-    await env.DB!.prepare("UPDATE work_items SET status = ?, updated_at = ? WHERE id = ?").bind(status, Date.now(), id).run();
+    const now=Date.now();
+    const changes=[env.DB!.prepare("UPDATE work_items SET status = ?, updated_at = ? WHERE id = ?").bind(status,now,id)];
+    if(item.kind === "task") changes.push(env.DB!.prepare("INSERT INTO task_updates(id,task_id,author,body,kind,created_at) VALUES(?,?,?,?,'activity',?)").bind(crypto.randomUUID(),id,actor.displayName,`Stage changed to ${status}`,now));
+    await env.DB!.batch(changes);
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Unable to update work item", error);
