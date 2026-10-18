@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, ChevronDown, CircleHelp, Command, Download, FileText, Handshake, LayoutDashboard, Menu, Megaphone, Paperclip, Pencil, Plus, Search, Sparkles, Trash2, Upload, UserRound, Users, Wallet, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BriefcaseBusiness, CalendarDays, CheckSquare2, ChevronDown, CircleHelp, Command, Download, FileText, Handshake, LayoutDashboard, Menu, Megaphone, Paperclip, Pencil, Plus, Search, Sparkles, Trash2, Upload, UserRound, Users, Wallet, X } from "lucide-react";
 import { serviceGroups } from "../lib/services";
 import { displayVendorServices, parseVendorServices, serializeVendorServices, vendorServiceOptions } from "../lib/vendor-services";
 import CalendarView from "./calendar-view";
@@ -56,7 +56,12 @@ async function api(path: string, options?: RequestInit): Promise<{items?: Item[]
 
 export default function Workspace() {
   const confirm = useSiteConfirm();
-  const [section, setSection] = useState<Section>("overview");
+  const [{section, history}, setNavigation] = useState<{section:Section;history:Section[]}>({section:"overview",history:[]});
+  const setSection = useCallback((next:Section) => setNavigation(current => current.section===next ? current : {section:next,history:[...current.history,current.section].slice(-50)}), []);
+  function goBack() {
+    setNavigation(current => ({section:current.history.at(-1) || "overview",history:current.history.slice(0,-1)}));
+    setQuery(""); setExpandItemId(null); setMobileNav(false);
+  }
   const [items, setItems] = useState<Item[]>([]);
   const [vendors, setVendors] = useState<Contact[]>([]);
   const [vendorError, setVendorError] = useState("");
@@ -170,7 +175,7 @@ export default function Workspace() {
       <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={17}/><div><strong>Keep work together</strong><p>Track enquiries, orders, vendors, and money.</p></div></div><div className="side-footer">MAINSTREAM HOUSE <span>© 2026</span></div></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="topbar-left"><button className="menu-button" onClick={() => setMobileNav(v => !v)} aria-label="Toggle menu"><Menu size={21}/></button><span className="breadcrumb">Workspace</span><span className="slash">/</span><strong>{title}</strong></div><div className="topbar-right"><span className="private-pill"><span/> Private workspace</span><div className="avatar" aria-label="Mainstream House">MH</div></div></header>
+      <header className="topbar"><div className="topbar-left"><button className="menu-button" onClick={() => setMobileNav(v => !v)} aria-label="Toggle menu"><Menu size={21}/></button><button className="workspace-back" onClick={goBack} disabled={!history.length} aria-label="Go back to previous section" title="Back to previous section"><ArrowLeft size={16}/><span>Back</span></button><span className="breadcrumb">Workspace</span><span className="slash">/</span><strong>{title}</strong></div><div className="topbar-right"><span className="private-pill"><span/> Private workspace</span><div className="avatar" aria-label="Mainstream House">MH</div></div></header>
       <div className="content">
         {section !== "overview" && section !== "task" && <div className="intro"><div><div className="eyebrow"><span className="eyebrow-line"/> MAINSTREAM HOUSE / OPERATIONS</div><h1>{title}</h1><p>
         {section === "marketing" ? "Plan service campaigns, prepare content with Pomaa, and manage your publishing calendar." : section === "ai" ? "Ask Pomaa, dictate an order, draft copy, or read an asset." : section === "lead" ? "Follow each enquiry from first contact to decision." : section === "order" ? "Manage delivery orders and scheduled bookings together." : section === "calendar" ? "See upcoming due dates, order milestones, and delivery progress." : section === "customer" ? "Keep your customer details in one place." : section === "partner" ? "Keep printing and fulfillment vendors close at hand." : "Record income and expenses for the team to review."}</p></div>{section !== "customer" && section !== "partner" && section !== "calendar" && section !== "ai" && section !== "marketing" && <button className="primary-button" onClick={() => setDialog(newKind)}><Plus size={18}/> New {labels[newKind].toLowerCase()} <ArrowRight size={18}/></button>}</div>}
