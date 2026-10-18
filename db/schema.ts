@@ -22,6 +22,9 @@ export const workItems = sqliteTable("work_items", {
   taskSourceId: text("task_source_id"),
   taskKey: text("task_key"),
   taskAssignee: text("task_assignee").notNull().default(""),
+  taskAssigneeId: text("task_assignee_id").notNull().default(""),
+  taskReferenceUrl: text("task_reference_url").notNull().default(""),
+  taskReferenceDate: text("task_reference_date").notNull().default(""),
   taskPriority: text("task_priority").notNull().default("Normal"),
   taskChecklist: text("task_checklist").notNull().default("[]"),
   taskLabels: text("task_labels").notNull().default(""),
@@ -31,6 +34,20 @@ export const workItems = sqliteTable("work_items", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, table => [uniqueIndex("idx_work_items_source_lead_id").on(table.sourceLeadId), index("idx_work_items_project_id").on(table.projectId), index("idx_work_items_vendor_id").on(table.vendorId), uniqueIndex("idx_work_items_task_key").on(table.taskKey)]);
+
+export const teamMembers = sqliteTable("team_members", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  customName: text("custom_name").notNull().default(""),
+  lastSeen: integer("last_seen").notNull(),
+});
+export const taskColumns = sqliteTable("task_columns", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
 
 export const leadAssets = sqliteTable("lead_assets", {
   id: text("id").primaryKey(),

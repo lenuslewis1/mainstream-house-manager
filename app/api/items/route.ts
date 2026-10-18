@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { rememberMember } from "../../../lib/team";
 import { validMoney } from "../../../lib/finance";
 
 import { parseFinanceDetails } from "../../../lib/finance-reports";
@@ -19,8 +20,10 @@ const statuses: Record<string, string[]> = {
 };
 
 export async function GET() {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
+  const user=await getChatGPTUser();
+  if (!user) return Response.json({ error: "Sign in required" }, { status: 401 });
   try {
+    await rememberMember(user);
     const data = await env.DB!.prepare("SELECT * FROM work_items ORDER BY updated_at DESC").all();
     return Response.json({ items: data.results });
   } catch (error) {
