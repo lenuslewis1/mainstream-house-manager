@@ -50,9 +50,9 @@ export default function OverviewPanels({ items, deliverables, loading, onOpenCal
         <div className="overview-finance-metrics" aria-label={`Financial totals in ${currency}`}>
           <div><span>Money received</span><strong>{money(finance.revenue, currency)}</strong></div>
           <div><span>Money spent</span><strong>{money(finance.expenses, currency)}</strong></div>
-          <div><span>Profit</span><strong>{money(finance.profit, currency)}</strong></div>
+          <div className="overview-net-profit"><span>{finance.profit<0?"Net loss so far":"Net profit so far"}</span><strong>{money(finance.profit, currency)}</strong><small>After all recorded expenses</small></div>
         </div>
-        <p className="overview-caption">Money received minus money spent equals profit. Only completed payments count.</p>
+        <p className="overview-caption">Profit deducts production, salaries, allowances and all other recorded payouts. Only completed payments count; unpaid costs are excluded.</p>
         {finance.linkedEntryCount > 0 && <p className="overview-caption overview-payment-caption">Order-linked payments: {money(finance.linkedReceived, currency)} received · {money(finance.linkedPaid, currency)} paid</p>}
         {(finance.pendingIncome > 0 || finance.pendingExpenses > 0) && <p className="overview-caption overview-payment-caption">Pending, excluded from totals: {money(finance.pendingIncome, currency)} income · {money(finance.pendingExpenses, currency)} expenses</p>}
         <p className="overview-caption overview-chart-caption">Completed cash receipts and payouts · last 6 months · {currency}</p>
