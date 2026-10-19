@@ -33,7 +33,7 @@ Set these application variables in the same ignored file:
 
 ```dotenv
 NEON_AUTH_COOKIE_SECRET=<random-secret-at-least-32-characters>
-WORKSPACE_ALLOWED_EMAILS=lenuslewis40@gmail.com,mainstreammediahouse7@gmail.com
+WORKSPACE_ALLOWED_EMAILS=lenuslewis40@gmail.com,mainstreammediahouse7@gmail.com,abrahamjnr2012@gmail.com,somteenwaka@gmail.com,nanajecil04@gmail.com
 OPENAI_API_KEY=<securely-provisioned-api-key>
 OPENAI_MODEL=gpt-5.6-luna
 ```
@@ -111,7 +111,7 @@ Only the Super admin (lenuslewis40@gmail.com) can change a signed-in member's ro
 
 - **Super admin:** lenuslewis40@gmail.com only; full access and exclusive role assignment. The role cannot be assigned to others or removed through the app.
 - **Manager:** full access, invoices, finances, Pomaa, task automation, and board settings. Cannot assign roles.
-- **Team member:** leads, orders (including quoted prices and estimated costs), customers, vendors, calendar, marketing, and tasks. Financial transactions, invoices, Pomaa, automation, board settings, and role management require a manager.
+- **Team member:** leads, orders (including quoted prices and saved order costs), customers, vendors, calendar, marketing, and tasks. Financial transactions, invoices, Pomaa, automation, board settings, and role management require a manager.
 - **Intern:** assigned tasks only, with status, existing checklist completion, and comments. Cannot create, delete, reassign, or change task instructions; cannot open other workspace records.
 
 New members default to Team member. The lenuslewis40@gmail.com account is the protected Super admin; mainstreammediahouse7@gmail.com retains Manager access. Set WORKSPACE_MANAGER_EMAILS to a comma-separated list to seed additional managers when those accounts first sign in; existing memberships are changed by the Super admin through Team. Role updates preserve names and assignments. The Super admin role is bound to the verified email identity, and concurrent role changes are serialized. The workspace email allowlist still applies to every role.
@@ -119,3 +119,11 @@ New members default to Team member. The lenuslewis40@gmail.com account is the pr
 Role regression check: run a built local preview with qa-roles-20261019@example.com added only to the preview process's WORKSPACE_ALLOWED_EMAILS, then run npm run test:roles (default http://localhost:8788, or set TEST_BASE_URL). The check creates a disposable verified Auth fixture without sending email, tests each role using real sessions, and removes its records afterward. Do not enable the QA email on the deployed host.
 
 Run `npm run test:super-admin` for reserved-identity and role-assignment API checks. The live role regression test also checks that even a forged Super admin database role on another email cannot grant role management.
+
+## Order costs and expenses
+
+Saved costs on an order count as expenses immediately and reduce profit. Existing completed expenses linked to that order cover the same total: the automatic ledger entry contains only the remaining amount, so the saved cost and its payment are never added twice. If completed linked expenses exceed the saved costs, the higher recorded amount is preserved. General expenses, salaries and allowances remain additional expenses.
+
+Edit an order's expenses through its cost lines or the Edit order expenses action in Finances. Adding a second expense linked to an order is rejected. Automatic entries cannot be marked pending or deleted independently. If an order is deleted, its uncovered expense is preserved as a general expense with the original order date. Reports use the order creation date for automatic costs and transaction dates for existing manual entries. Historical finance records are retained.
+
+Run npm run test:expenses for arithmetic and report regressions. The integration check npm run test:expenses:e2e uses a disposable Auth fixture; add qa-roles-20261019@example.com only to the local preview process's WORKSPACE_ALLOWED_EMAILS and set TEST_BASE_URL if it differs from http://localhost:8796. The test cleans up its records by default.

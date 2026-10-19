@@ -17,7 +17,9 @@
     "test:neon": "node --env-file=.env.local scripts/check-neon-e2e.mjs",
     "test:invoices": "node --env-file=.env.local scripts/check-standalone-invoices.mjs",
     "test:roles": "node --env-file=.env.local scripts/check-roles.mjs",
-    "test:super-admin": "node scripts/check-super-admin.cjs"
+    "test:super-admin": "node scripts/check-super-admin.cjs",
+    "test:expenses": "node scripts/check-automatic-expenses.cjs",
+    "test:expenses:e2e": "node --env-file=.env.local scripts/check-automatic-expenses-e2e.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

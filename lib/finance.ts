@@ -24,7 +24,7 @@ export function withOrderExpenses<T extends FinanceRecord>(records:T[]):T[] {
     const remaining=Math.max(0,cents(order.cost)-recorded);
     if(!remaining)return [];
     const created=order.created_at || 0;
-    return [{...order,id:`order-expense:${id}`,kind:"finance",title:`Order expenses · ${order.title || "Order"}`,status:"Completed",direction:"Expense",amount:(remaining/100).toFixed(2),currency,project_id:id,price:"0",cost:"0",auto_order_cost:true,category:"Order costs",payment_method:"",reference:"",due_date:new Date(created).toISOString().slice(0,10),created_at:created,notes:"Included automatically from this order's saved costs. Existing linked expenses count toward the same total."}];
+    return [{...order,id:`order-expense:${id}`,kind:"finance",title:`Order expenses · ${order.title || "Order"}`,status:"Completed",direction:"Expense",amount:(remaining/100).toFixed(2),currency,project_id:id,price:"0",cost:"0",auto_order_cost:true,client:"",category:"Order costs",payment_method:"",reference:"",due_date:new Date(created).toISOString().slice(0,10),created_at:created,notes:"Included automatically from this order's saved costs. Existing linked expenses count toward the same total."}];
   });
   return [...base,...automatic];
 }

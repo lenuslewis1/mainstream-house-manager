@@ -80,6 +80,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const linked = await db.prepare("SELECT 1 FROM work_items WHERE project_id = $1 AND kind = 'finance' AND currency != $2 LIMIT 1").bind(id, currency).first();
         if (linked) return Response.json({ error: "Order currency must match its linked finance entries." }, { status: 409 });
         if (vendorId && !(await db.prepare("SELECT id FROM contacts WHERE id = $1 AND kind = 'partner'").bind(vendorId).first())) return Response.json({ error: "Choose an existing vendor." }, { status: 400 });
+        const recorded=await db.prepare("SELECT COALESCE(SUM(COALESCE(NULLIF(amount,''),'0')::numeric),0)::text AS total FROM work_items WHERE kind='finance' AND direction='Expense' AND status='Completed' AND project_id=$1 AND COALESCE(NULLIF(currency,''),'GHS')=$2").bind(id,currency).first<{total:string}>();
+        if(cents(cost)<cents(item.cost) && cents(cost)<cents(recorded?.total)) return Response.json({error:"The order already has completed expenses of " + currency + " " + recorded?.total + ". Correct those linked entries first before reducing the order costs below that amount."},{status:400});
         const now = Date.now();
         const statements = [db.prepare("UPDATE work_items SET title = $1, client = $2, service = $3, due_date = $4, notes = $5, price = $6, cost = $7, currency = $8, vendor_id = $9, updated_at = $10, cost_items = $11 WHERE id = $12")
           .bind(title, client, service, dueDate, notes, price, cost, currency, vendorId || null, now, JSON.stringify(costItems || []), id)];
@@ -127,6 +129,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     const leadAssets = await db.prepare("SELECT object_key FROM lead_assets WHERE lead_id = $1").bind(id).all<{ object_key: string }>();
     const projectAssets = await db.prepare("SELECT object_key FROM project_assets WHERE project_id = $1").bind(id).all<{ object_key: string }>();
     await db.batch([
+      // Retain the expense when its source order is removed. The stable ID
+      // also prevents repeated deletion from recording the cost twice.
+      db.prepare("INSERT INTO work_items(id,kind,title,status,amount,currency,direction,category,due_date,notes,created_at,updated_at) SELECT 'order-expense:'||o.id,'finance',LEFT('Order expenses · '||o.title,160),'Completed',(COALESCE(NULLIF(o.cost,''),'0')::numeric-COALESCE((SELECT SUM(COALESCE(NULLIF(e.amount,''),'0')::numeric) FROM work_items e WHERE e.kind='finance' AND e.direction='Expense' AND e.status='Completed' AND e.project_id=o.id AND COALESCE(NULLIF(e.currency,''),'GHS')=COALESCE(NULLIF(o.currency,''),'GHS')),0))::text,COALESCE(NULLIF(o.currency,''),'GHS'),'Expense','Order costs',to_char(to_timestamp(o.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD'),'Saved expenses for a deleted order.',o.created_at,$1 FROM work_items o WHERE o.id=$2 AND o.kind IN ('project','booking') AND COALESCE(NULLIF(o.cost,''),'0')::numeric>COALESCE((SELECT SUM(COALESCE(NULLIF(e.amount,''),'0')::numeric) FROM work_items e WHERE e.kind='finance' AND e.direction='Expense' AND e.status='Completed' AND e.project_id=o.id AND COALESCE(NULLIF(e.currency,''),'GHS')=COALESCE(NULLIF(o.currency,''),'GHS')),0) ON CONFLICT(id) DO NOTHING").bind(Date.now(),id),
       db.prepare("UPDATE work_items SET task_source_id = NULL WHERE task_source_kind = 'order' AND task_source_id = $1").bind(id),
       db.prepare("DELETE FROM task_generations WHERE source_key = $1").bind(`order:${id}`),
       db.prepare("UPDATE work_items SET source_lead_id = NULL WHERE source_lead_id = $1").bind(id),
