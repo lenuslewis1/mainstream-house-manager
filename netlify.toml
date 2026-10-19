@@ -5,6 +5,8 @@
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
+  # Public configuration values already documented in the source, not credentials.
+  SECRETS_SCAN_OMIT_KEYS = "OPENAI_MODEL,WORKSPACE_ALLOWED_EMAILS"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
