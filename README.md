@@ -33,7 +33,7 @@ Set these application variables in the same ignored file:
 
 ```dotenv
 NEON_AUTH_COOKIE_SECRET=<random-secret-at-least-32-characters>
-WORKSPACE_ALLOWED_EMAILS=lenuslewis40@gmail.com,mainstreammediahouse7@gmail.com,abrahamjnr2012@gmail.com,somteenwaka@gmail.com,nanajecil04@gmail.com
+WORKSPACE_ALLOWED_EMAILS=lenuslewis40@gmail.com,mainstreammediahouse7@gmail.com,abrahamjnr2012@gmail.com,somteenwaka@gmail.com,nanajecil04@gmail.com,corneliusabbey69@gmail.com
 OPENAI_API_KEY=<securely-provisioned-api-key>
 OPENAI_MODEL=gpt-5.6-luna
 ```
