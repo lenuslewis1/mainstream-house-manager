@@ -1,126 +1,121 @@
-# vinext-starter
+# Mainstream House Manager
 
-A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
+Private operations workspace built with React, Vinext, and Cloudflare Workers. Neon supplies PostgreSQL and managed authentication. Pomaa calls the OpenAI Responses API with `gpt-5.6-luna`.
 
-## Prerequisites
+## Backend
 
-- Node.js `>=22.13.0`
-- Portable: Windows, macOS, or Linux; no Bash required
-- Managed Linux: managed Linux runtime with Bash, `flock`, `curl`, `sha256sum`, and GNU `timeout`
-- Git is required only for publishing
+- Neon organization: `org-dry-queen-23506502`
+- Neon project: `misty-field-22672296`
+- Branch: `production`
+- Region: London (`aws-eu-west-2`), Free plan
+- Records: 13 PostgreSQL tables; parameterized Neon HTTP queries and atomic transaction batches
+- Authentication: Neon Auth sessions; verified email required; server-side workspace email allowlist
+- Attachments: PostgreSQL `bytea`, capped at 25 MB per file; metadata and download routes require workspace access
+- AI: OpenAI API, independently billed by OpenAI; `OPENAI_MODEL=gpt-5.6-luna`
 
-## Sites Lifecycle
+Neon Object Storage and AI Gateway do not support this project's region; AI Gateway also requires a paid plan. Keeping attachments in Postgres allows this project to stay on Neon's Free plan. Attachments count toward the database's storage and transfer limits. Frontend and server hosting remain on a compatible app host; Neon does not host the frontend.
 
-The Sites initializer copies the shared starter and selects managed-linux only when `SITES_MANAGED_LINUX_CONTAINER=1`; otherwise it selects portable. It saves the selection only in ignored `.sites-runtime/execution-profile.json`. Both profiles copy/configure first, then use the plugin's separate `install-dependencies.mjs` step to measure installation independently. Edit source under `app/` and follow the Sites skill for installation, preview, builds, and publishing.
+The Cloudflare D1/R2 bindings and ChatGPT identity headers are no longer used. The old SQLite migrations are retained as history; new migrations live in `drizzle/neon`. Existing records or files from an earlier hosted Sites instance have not been imported into Neon.
 
-Run `node <plugin-root>/scripts/configure-execution-profile.mjs` only when the profile is unknown for the current checkout and environment. Profile changes do not alter tracked source or require reinstalling otherwise-valid dependencies; restart an existing preview to use the new selection. Do not commit or upload `.sites-runtime/`.
+## Setup
 
-This starter does not use `wrangler.jsonc`.
+Requires Node.js >=22.13.0. From this directory:
 
-`install:ci` runs `npm ci` once against the shared lockfile, disables parent-workspace discovery, and includes required dev/optional dependencies despite production/omit settings. Sharp defaults to prebuilt binaries unless explicitly configured otherwise. Do not overlap installers.
-
-- **Portable:** Preserve host HOME, npm cache, registry, proxy, temporary paths, retry/concurrency settings, and lifecycle-script policy. Use `--prefer-offline --no-audit --no-fund`.
-- **Managed Linux:** Use the existing project-local HOME/cache/tmp setup and Linux install lock, tarball preflight, and timeout. Restore the image-seeded npm cache only when its lockfile hash matches; retain network fallback. Builds keep their existing timeout. These helpers are not invoked by the portable profile.
-
-`scripts/sites-env.mjs` preserves the caller's HOME, npm cache, proxy, XDG, and temporary-directory configuration while defaulting Wrangler and Miniflare state to the checkout. If npm reports an unwritable cache, select a writable path with `npm_config_cache` for that install. The `dev` and `start` scripts also keep Wrangler logs inside the checkout. Generated `.sites-runtime/` and `.wrangler/` directories are disposable and ignored by Git.
-
-On portable, `npm run dev` uses `vinext dev` with HMR, starting at port 5173. Vinext records the running server in ignored `.vinext/` state, rejects an ordinary duplicate launch, and recovers stale state after a stopped process; exactly simultaneous starts can race. Pass `--port <port>` or `--hostname <host>` after `npm run dev --` when needed; keep portable previews on loopback.
-
-For browser QA on managed Linux, use `sites-preview start`. The project's dev script runs Vite and accepts the supervisor's `--host 0.0.0.0 --port 4173 --strictPort` arguments. The internal browser uses `http://terminal.local:4173/`; it is not a user-facing URL. The supervisor owns the preview lifecycle. The ignored local profile survives the supervisor's cleared process environment.
-
-The portable profile simulates ChatGPT sign-in only for loopback development requests. Visit `/signin-with-chatgpt?return_to=/` to sign in as `local_seedy` (`seedy@sites.test`, display name `Seedy`) and `/signout-with-chatgpt?return_to=/` to sign out. The development cookie preserves that identity across server restarts. Mock auth is disabled in the managed-linux profile and is not included in production builds; hosted authentication remains dispatch-owned.
-
-The Worker uses `vinext/server/fetch-handler`, including Vinext's config-aware image handling. After building, `npm start` runs that Worker locally through Wrangler on `127.0.0.1`, sharing `.wrangler/state` with dev preview and local D1 migrations; it does not deploy the site or simulate sign-in. Use the URL printed by the server. Pass `npm start -- --port <port>` to select a different built-preview port.
-
-Local previews use Miniflare's placeholder `Request.cf` metadata without a network lookup. Set `CLOUDFLARE_CF_FETCH_ENABLED=true` to opt into fetching preview metadata; this setting does not change hosted request metadata.
-
-Local tool usage metrics are disabled by default. Set `WRANGLER_SEND_METRICS=true` to opt in.
-
-## Included Shape
-
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `@cloudflare/workers-types` provides Worker types; `cloudflare-env.d.ts` declares optional `DB`/`BUCKET` bindings—update these declarations if binding names change
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Use it as the durable user key; use email and name for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive `oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty `name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by `oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```powershell
+npm run install:ci
+npx neon@latest init -y --org-id org-dry-queen-23506502 --project-id misty-field-22672296 --branch production --services postgres,auth
+npx neon@latest deploy
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+Complete browser authentication if the CLI requests it. `neon deploy` provisions the services declared in `neon.ts` and writes their connection variables into ignored `.env.local`.
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs optional or required ChatGPT sign-in:
+Set these application variables in the same ignored file:
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use the returned `userId` as the stable user key for user-owned records; do not use email as a durable identifier.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send anonymous visitors through Sign in with ChatGPT.
-- In a Server Component, start sign-in with `<a href={chatGPTSignInPath(returnTo)} target="_top">`. The auth helper module is server-only; do not import it into a Client Component.
-- Do not use `fetch`, XHR, a client-side router, or a framework link that can prefetch the sign-in route. SIWC must start as a top-level navigation.
-- Never request the AuthAPI authorization endpoint directly. The dispatch-owned `/signin-with-chatgpt` route must start the SIWC flow.
-- Use `chatGPTSignOutPath(returnTo)` for browser sign-out links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the OAuth cookies, and identity header injection. Do not implement app routes for those reserved paths. Routes that do not import and call the helper remain anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the Sites hosting platform's access policy controls for workspace-wide restrictions, or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Local D1 migrations
-
-For a D1-backed local preview, generate SQL with `npm run db:generate`. Build once through the Sites skill's build entrypoint (or `npm run build` for standalone use) to generate `dist/server/wrangler.json`, rebuilding if bindings change. From the project root, apply each pending migration in order:
-
-```sh
-node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_example.sql
+```dotenv
+NEON_AUTH_COOKIE_SECRET=<random-secret-at-least-32-characters>
+WORKSPACE_ALLOWED_EMAILS=lenuslewis40@gmail.com,mainstreammediahouse7@gmail.com
+OPENAI_API_KEY=<securely-provisioned-api-key>
+OPENAI_MODEL=gpt-5.6-luna
 ```
 
-Replace the filename with the pending migration and `DB` with your D1 binding name if different. Use `.wrangler/state`, not `.wrangler/state/v3`; Wrangler adds the versioned directories. Do not replay migrations already applied locally. This updates only the preview database; publishing applies production migrations separately.
+Never expose database URLs, the cookie secret, or the API key through `VITE_*` or browser code. Set these variables as secrets on the app host when publishing. The cookie secret is generated by the app owner, not supplied by `neon deploy`.
 
-## Diagnostic Commands
+```powershell
+npm run db:migrate
+npm run dev
+```
 
-- `npm run install:ci`: perform the one locked dependency install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build the deployable Sites artifact
-- `npm run start`: preview the built Worker locally with D1/R2 support
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+Open the URL printed by the server. Create the approved email account at `/auth/sign-in`, then complete email verification. The verification-code screen uses Neon Auth email delivery. Signup and sign-in verification emails were not sent during automated testing; a disposable verified Auth fixture was used. Production Neon Auth email delivery requires configuring custom SMTP; see the [Neon checklist](https://neon.com/docs/auth/production-checklist).
 
-When using the Sites plugin, follow its skill instructions for installation, builds, and publishing. These npm commands remain available for standalone use.
+For a public deployment, add the app's exact HTTPS origin to Neon's trusted domains:
 
-The portable build runs Vinext directly without a host `timeout` command. The managed-linux build uses `scripts/build-verified.sh` and its existing `SITES_BUILD_TIMEOUT` setting.
+```powershell
+npx neon@latest neon-auth domain add https://your-app.example
+```
 
-## Learn More
+## Build and preview
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+```powershell
+npm run build
+npm start -- --port 8787
+```
+
+`npm start` previews the built Worker locally. It does not publish the frontend. Register production environment secrets on the chosen host before deployment.
+
+## Netlify hosting
+
+The Git-connected Netlify deployment uses `netlify.toml`, `npm run build:netlify`, and the Next.js runtime for pages and server APIs. The existing Vinext commands remain available for local Worker previews.
+
+Configure `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_COOKIE_SECRET`, `WORKSPACE_ALLOWED_EMAILS`, `OPENAI_API_KEY`, and `OPENAI_MODEL` as server environment variables in Netlify. Keep credentials out of Git and browser-prefixed variables. Add the deployed HTTPS origin to Neon Auth trusted domains. Database migrations run separately using `npm run db:migrate`; production builds do not apply migrations.
+
+Netlify's checkout state in `.netlify/` is ignored by Git. Pushes to the connected `main` branch rebuild and publish automatically.
+
+## Standalone invoices
+
+Open **Invoices** from the workspace sidebar, then choose **New invoice**. Enter the customer, currency, dates, line items, and payment details; save before printing or saving a PDF. An order is optional. Standalone drafts remain in the invoice list so they can be reopened. Existing order actions continue to open that order's invoice, with its currency retained.
+
+The invoice regression check is `npm run test:invoices`; use the same temporary local QA allowlist described under Validation, then restore the owner-only allowlist afterward.
+
+## Database changes
+
+Schema: `db/schema.ts`; migrations: `drizzle/neon`; query adapter: `db/client.ts`.
+
+```powershell
+npm run db:generate
+npm run db:migrate
+```
+
+Migrations use `DATABASE_URL_UNPOOLED`. Application traffic uses pooled `DATABASE_URL`. Test new migrations on a temporary branch before applying them to production. Do not apply the historic D1 migrations to Postgres.
+
+## Validation
+
+```powershell
+npx tsc --noEmit
+node scripts/check-finance.cjs
+node scripts/check-order-costs.cjs
+npm run build
+```
+
+The live test `scripts/check-neon-e2e.mjs` exercises real Auth, PostgreSQL CRUD, conversion/invoices, task concurrency, upload/download/delete, and Pomaa. It creates and removes disposable records. For this test, temporarily add `qa-neon-20261019@example.com` to the **local** preview's allowlist and restart the preview, then run:
+
+```powershell
+$env:TEST_BASE_URL='http://localhost:8787'
+npm run test:neon
+```
+
+Restore the allowlist to the approved owner and restart the preview after testing. The test marks only its disposable Auth fixture verified directly in Postgres, then signs in through Neon Auth; it does not bypass the application's session checks. Old D1-specific test harnesses are historical and are not Postgres verification. Results from this setup are saved in ignored `outputs/neon-e2e-results.txt`.
+
+## Team roles
+
+Only the Super admin (lenuslewis40@gmail.com) can change a signed-in member's role from **Team** in the sidebar. Roles are stored on the server; financial APIs and task updates check the current database membership on every request.
+
+- **Super admin:** lenuslewis40@gmail.com only; full access and exclusive role assignment. The role cannot be assigned to others or removed through the app.
+- **Manager:** full access, invoices, finances, Pomaa, task automation, and board settings. Cannot assign roles.
+- **Team member:** leads, orders (including quoted prices and estimated costs), customers, vendors, calendar, marketing, and tasks. Financial transactions, invoices, Pomaa, automation, board settings, and role management require a manager.
+- **Intern:** assigned tasks only, with status, existing checklist completion, and comments. Cannot create, delete, reassign, or change task instructions; cannot open other workspace records.
+
+New members default to Team member. The lenuslewis40@gmail.com account is the protected Super admin; mainstreammediahouse7@gmail.com retains Manager access. Set WORKSPACE_MANAGER_EMAILS to a comma-separated list to seed additional managers when those accounts first sign in; existing memberships are changed by the Super admin through Team. Role updates preserve names and assignments. The Super admin role is bound to the verified email identity, and concurrent role changes are serialized. The workspace email allowlist still applies to every role.
+
+Role regression check: run a built local preview with qa-roles-20261019@example.com added only to the preview process's WORKSPACE_ALLOWED_EMAILS, then run npm run test:roles (default http://localhost:8788, or set TEST_BASE_URL). The check creates a disposable verified Auth fixture without sending email, tests each role using real sessions, and removes its records afterward. Do not enable the QA email on the deployed host.
+
+Run `npm run test:super-admin` for reserved-identity and role-assignment API checks. The live role regression test also checks that even a forged Super admin database role on another email cannot grant role management.

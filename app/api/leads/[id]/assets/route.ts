@@ -1,11 +1,12 @@
-import { env } from "cloudflare:workers";
+import { database as db } from "../../../../../db/client";
+import { storage } from "../../../../../lib/storage";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 
 export const runtime = "edge";
 const MAX_BYTES = 25 * 1024 * 1024;
 
 async function isLead(id: string): Promise<boolean> {
-  const item = await env.DB!.prepare("SELECT id FROM work_items WHERE id = ? AND kind = 'lead'").bind(id).first();
+  const item = await db.prepare("SELECT id FROM work_items WHERE id = $1 AND kind = 'lead'").bind(id).first();
   return Boolean(item);
 }
 
@@ -14,7 +15,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   try {
     if (!(await isLead(id))) return Response.json({ error: "Lead not found" }, { status: 404 });
-    const result = await env.DB!.prepare("SELECT id, file_name, content_type, size_bytes, uploaded_at, uploaded_by FROM lead_assets WHERE lead_id = ? ORDER BY uploaded_at DESC").bind(id).all();
+    const result = await db.prepare("SELECT id, file_name, content_type, size_bytes, uploaded_at, uploaded_by FROM lead_assets WHERE lead_id = $1 ORDER BY uploaded_at DESC").bind(id).all();
     return Response.json({ assets: result.results });
   } catch (error) {
     console.error("Unable to list lead assets", error);
@@ -26,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Sign in required" }, { status: 401 });
   const { id: leadId } = await params;
-  if (!env.BUCKET || !env.DB) return Response.json({ error: "Asset storage is unavailable." }, { status: 503 });
+  if (!storage || !db) return Response.json({ error: "Asset storage is unavailable." }, { status: 503 });
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > MAX_BYTES + 1024 * 1024) return Response.json({ error: "Files must be 25 MB or smaller." }, { status: 413 });
   try {
@@ -39,12 +40,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const assetId = crypto.randomUUID();
     const key = `leads/${leadId}/${assetId}`;
     const contentType = file.type || "application/octet-stream";
-    await env.BUCKET.put(key, file.stream(), { httpMetadata: { contentType } });
+    await storage.put(key, file.stream(), { httpMetadata: { contentType } });
     try {
-      await env.DB.prepare("INSERT INTO lead_assets (id, lead_id, object_key, file_name, content_type, size_bytes, uploaded_at, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      await db.prepare("INSERT INTO lead_assets (id, lead_id, object_key, file_name, content_type, size_bytes, uploaded_at, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)")
         .bind(assetId, leadId, key, fileName, contentType, file.size, Date.now(), user.email).run();
     } catch (error) {
-      await env.BUCKET.delete(key).catch(cleanupError => console.error("Unable to clean up uploaded asset", cleanupError));
+      await storage.delete(key).catch(cleanupError => console.error("Unable to clean up uploaded asset", cleanupError));
       throw error;
     }
     return Response.json({ id: assetId }, { status: 201 });

@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+
 
 type InputPart = { type: "input_text"; text: string } | { type: "input_image"; image_url: string } | { type: "input_file"; filename: string; file_data: string };
 type JsonSchema = { name: string; schema: Record<string, unknown>; strict: true };
@@ -8,7 +8,7 @@ export class AIServiceError extends Error {
 }
 
 export async function aiResponse(instructions: string, content: string | InputPart[], schema?: JsonSchema): Promise<string> {
-  const key = env.OPENAI_API_KEY;
+  const key = process.env.OPENAI_API_KEY;
   if (!key) throw new AIServiceError("AI is not configured yet. Please contact the workspace owner.");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), schema?.name === "source_tasks" ? 25000 : 45000);
@@ -17,7 +17,7 @@ export async function aiResponse(instructions: string, content: string | InputPa
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: env.OPENAI_MODEL || "gpt-5.6-luna",
+        model: process.env.OPENAI_MODEL || "gpt-5.6-luna",
         store: false,
         reasoning: { effort: "none" },
         instructions,

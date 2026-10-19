@@ -1,4 +1,5 @@
-import { env } from "cloudflare:workers";
+import { database as db } from "../../../../../../db/client";
+import { storage } from "../../../../../../lib/storage";
 import { getChatGPTUser } from "../../../../../chatgpt-auth";
 
 export const runtime = "edge";
@@ -6,7 +7,7 @@ type Params = { params: Promise<{ id: string; assetId: string }> };
 type AssetRow = { id: string; object_key: string; file_name: string; content_type: string };
 
 async function findAsset(projectId: string, assetId: string): Promise<AssetRow | null> {
-  return env.DB!.prepare("SELECT a.id, a.object_key, a.file_name, a.content_type FROM project_assets a JOIN work_items w ON w.id = a.project_id WHERE a.id = ? AND a.project_id = ? AND w.kind IN ('project', 'booking')")
+  return db.prepare("SELECT a.id, a.object_key, a.file_name, a.content_type FROM project_assets a JOIN work_items w ON w.id = a.project_id WHERE a.id = $1 AND a.project_id = $2 AND w.kind IN ('project', 'booking')")
     .bind(assetId, projectId).first<AssetRow>();
 }
 
@@ -16,7 +17,7 @@ export async function GET(_request: Request, { params }: Params) {
   try {
     const asset = await findAsset(id, assetId);
     if (!asset) return Response.json({ error: "Asset not found" }, { status: 404 });
-    const object = await env.BUCKET!.get(asset.object_key);
+    const object = await storage.get(asset.object_key);
     if (!object) return Response.json({ error: "File unavailable" }, { status: 404 });
     const safeName = asset.file_name.replace(/["\\\r\n]/g, "_");
     return new Response(object.body, { headers: {
@@ -38,8 +39,8 @@ export async function DELETE(_request: Request, { params }: Params) {
   try {
     const asset = await findAsset(id, assetId);
     if (!asset) return Response.json({ error: "Asset not found" }, { status: 404 });
-    await env.DB!.prepare("DELETE FROM project_assets WHERE id = ? AND project_id = ?").bind(assetId, id).run();
-    await env.BUCKET!.delete(asset.object_key).catch(error => console.error("Unable to remove asset object", error));
+    await db.prepare("DELETE FROM project_assets WHERE id = $1 AND project_id = $2").bind(assetId, id).run();
+    await storage.delete(asset.object_key).catch(error => console.error("Unable to remove asset object", error));
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Unable to delete project asset", error);

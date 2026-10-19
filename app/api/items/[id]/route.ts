@@ -1,6 +1,7 @@
-import { env } from "cloudflare:workers";
+import { database as db } from "../../../../db/client";
+import { storage } from "../../../../lib/storage";
 import { getChatGPTUser } from "../../../chatgpt-auth";
-import { validMoney } from "../../../../lib/finance";
+import { validMoney, cents } from "../../../../lib/finance";
 
 import { parseFinanceDetails } from "../../../../lib/finance-reports";
 
@@ -19,7 +20,7 @@ const statuses: Record<string, string[]> = {
 };
 
 function customerInsert(client: string, now: number) {
-  return env.DB!.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT ?, 'customer', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND TRIM(name) = ? COLLATE NOCASE)")
+  return db.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT $1, 'customer', $2, $3, $4 WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND LOWER(TRIM(name)) = LOWER($5))")
     .bind(crypto.randomUUID(), client, now, now, client);
 }
 
@@ -30,8 +31,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const input = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!input || typeof input !== "object") return Response.json({ error: "Invalid request" }, { status: 400 });
   try {
-    const item = await env.DB!.prepare("SELECT kind, source_lead_id FROM work_items WHERE id = ?").bind(id).first<{kind: string; source_lead_id: string | null}>();
+    const item = await db.prepare("SELECT kind, source_lead_id, cost FROM work_items WHERE id = $1").bind(id).first<{kind: string; source_lead_id: string | null; cost:string}>();
     if (!item) return Response.json({ error: "Record not found" }, { status: 404 });
+    if (item.kind === "finance" && !(await getChatGPTUser("finance"))) return Response.json({error:"Only managers can access finances."},{status:403});
     if (input.mode === "details") {
       if (item.kind === "finance") {
         const details = parseFinanceDetails(input);
@@ -46,15 +48,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const projectId = String(input.projectId ?? "").trim();
         if (!title || title.length > 160 || client.length > 160 || notes.length > 4000 || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) || !validMoney(amount) || !/^[A-Z]{3}$/.test(currency) || !["Income", "Expense"].includes(direction)) return Response.json({ error: "Check the required fields." }, { status: 400 });
         if (projectId) {
-          const project = await env.DB!.prepare("SELECT currency FROM work_items WHERE id = ? AND kind IN ('project', 'booking')").bind(projectId).first<{currency: string}>();
+          const project = await db.prepare("SELECT currency FROM work_items WHERE id = $1 AND kind IN ('project', 'booking')").bind(projectId).first<{currency: string}>();
           if (!project) return Response.json({ error: "Choose an existing order." }, { status: 400 });
           if ((project.currency || "GHS") !== currency) return Response.json({ error: "Finance entry currency must match the order currency." }, { status: 400 });
         }
         const now = Date.now();
-        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, notes = ?, due_date = ?, amount = ?, currency = ?, direction = ?, project_id = ?, updated_at = ?, category = ?, payment_method = ?, reference = ? WHERE id = ?")
+        const statements = [db.prepare("UPDATE work_items SET title = $1, client = $2, notes = $3, due_date = $4, amount = $5, currency = $6, direction = $7, project_id = $8, updated_at = $9, category = $10, payment_method = $11, reference = $12 WHERE id = $13")
           .bind(title, client, notes, dueDate, amount, currency, direction, projectId || null, now, details.category, details.paymentMethod, details.reference, id)];
         if (client && direction === "Income") statements.push(customerInsert(client, now));
-        await env.DB!.batch(statements);
+        await db.batch(statements);
         return Response.json({ ok: true });
       }
       if (item.kind !== "lead" && item.kind !== "project" && item.kind !== "booking" && item.kind !== "task") return Response.json({ error: "This record cannot be edited here." }, { status: 400 });
@@ -75,22 +77,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const cost = costItems ? costTotal(costItems) : String(input.cost ?? "0").trim();
         const currency = String(input.currency ?? "GHS").trim().toUpperCase();
         if (!validMoney(price) || !validMoney(cost) || !/^[A-Z]{3}$/.test(currency)) return Response.json({ error: "Enter a valid order price, cost, and currency." }, { status: 400 });
-        const linked = await env.DB!.prepare("SELECT 1 FROM work_items WHERE project_id = ? AND kind = 'finance' AND currency != ? LIMIT 1").bind(id, currency).first();
+        const linked = await db.prepare("SELECT 1 FROM work_items WHERE project_id = $1 AND kind = 'finance' AND currency != $2 LIMIT 1").bind(id, currency).first();
         if (linked) return Response.json({ error: "Order currency must match its linked finance entries." }, { status: 409 });
-        if (vendorId && !(await env.DB!.prepare("SELECT id FROM contacts WHERE id = ? AND kind = 'partner'").bind(vendorId).first())) return Response.json({ error: "Choose an existing vendor." }, { status: 400 });
+        if (vendorId && !(await db.prepare("SELECT id FROM contacts WHERE id = $1 AND kind = 'partner'").bind(vendorId).first())) return Response.json({ error: "Choose an existing vendor." }, { status: 400 });
         const now = Date.now();
-        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, price = ?, cost = ?, currency = ?, vendor_id = ?, updated_at = ?, cost_items = ? WHERE id = ?")
+        const statements = [db.prepare("UPDATE work_items SET title = $1, client = $2, service = $3, due_date = $4, notes = $5, price = $6, cost = $7, currency = $8, vendor_id = $9, updated_at = $10, cost_items = $11 WHERE id = $12")
           .bind(title, client, service, dueDate, notes, price, cost, currency, vendorId || null, now, JSON.stringify(costItems || []), id)];
         if (client) statements.push(customerInsert(client, now));
-        await env.DB!.batch(statements);
+        await db.batch(statements);
       } else {
         if (vendorId) return Response.json({ error: "Only orders can have vendors." }, { status: 400 });
         const now = Date.now();
-        const statements = [env.DB!.prepare("UPDATE work_items SET title = ?, client = ?, service = ?, due_date = ?, notes = ?, updated_at = ? WHERE id = ?")
+        const statements = [db.prepare("UPDATE work_items SET title = $1, client = $2, service = $3, due_date = $4, notes = $5, updated_at = $6 WHERE id = $7")
           .bind(title, client, service, dueDate, notes, now, id)];
         if (client) statements.push(customerInsert(client, now));
-        if (item.kind === "task") statements.push(env.DB!.prepare("INSERT INTO task_updates(id,task_id,author,body,kind,created_at) VALUES(?,?,?,?,'activity',?)").bind(crypto.randomUUID(),id,actor.displayName,"Updated task details",now));
-        await env.DB!.batch(statements);
+        if (item.kind === "task") statements.push(db.prepare("INSERT INTO task_updates(id,task_id,author,body,kind,created_at) VALUES($1,$2,$3,$4,'activity',$5)").bind(crypto.randomUUID(),id,actor.displayName,"Updated task details",now));
+        await db.batch(statements);
       }
       const tasks = ["project","booking"].includes(item.kind) ? await autoTasks("order",id) : undefined;
       return Response.json({ ok: true, tasks });
@@ -98,16 +100,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const status = String(input.status ?? "");
     if (!statuses[item.kind]?.includes(status)) return Response.json({ error: "Invalid status" }, { status: 400 });
     if (item.kind === "lead" && status !== "Won") {
-      const project = await env.DB!.prepare("SELECT id FROM work_items WHERE source_lead_id = ?").bind(id).first();
+      const project = await db.prepare("SELECT id FROM work_items WHERE source_lead_id = $1").bind(id).first();
       if (project) return Response.json({ error: "This lead is linked to a project and stays marked Won." }, { status: 409 });
     }
     if (item.kind === "lead" && status === "Won") {
       return Response.json({ error: "Use Convert to project to mark this lead Won." }, { status: 409 });
     }
     const now=Date.now();
-    const changes=[env.DB!.prepare("UPDATE work_items SET status = ?, updated_at = ? WHERE id = ?").bind(status,now,id)];
-    if(item.kind === "task") changes.push(env.DB!.prepare("INSERT INTO task_updates(id,task_id,author,body,kind,created_at) VALUES(?,?,?,?,'activity',?)").bind(crypto.randomUUID(),id,actor.displayName,`Stage changed to ${status}`,now));
-    await env.DB!.batch(changes);
+    const changes=[db.prepare("UPDATE work_items SET status = $1, updated_at = $2 WHERE id = $3").bind(status,now,id)];
+    if(item.kind === "task") changes.push(db.prepare("INSERT INTO task_updates(id,task_id,author,body,kind,created_at) VALUES($1,$2,$3,$4,'activity',$5)").bind(crypto.randomUUID(),id,actor.displayName,`Stage changed to ${status}`,now));
+    await db.batch(changes);
     return Response.json({ ok: true });
   } catch (error) {
     console.error("Unable to update work item", error);
@@ -119,17 +121,20 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
   const { id } = await params;
   try {
-    const leadAssets = await env.DB!.prepare("SELECT object_key FROM lead_assets WHERE lead_id = ?").bind(id).all<{ object_key: string }>();
-    const projectAssets = await env.DB!.prepare("SELECT object_key FROM project_assets WHERE project_id = ?").bind(id).all<{ object_key: string }>();
-    await env.DB!.batch([
-      env.DB!.prepare("UPDATE work_items SET task_source_id = NULL WHERE task_source_kind = 'order' AND task_source_id = ?").bind(id),
-      env.DB!.prepare("DELETE FROM task_generations WHERE source_key = ?").bind(`order:${id}`),
-      env.DB!.prepare("UPDATE work_items SET source_lead_id = NULL WHERE source_lead_id = ?").bind(id),
-      env.DB!.prepare("UPDATE work_items SET project_id = NULL WHERE project_id = ?").bind(id),
-      env.DB!.prepare("DELETE FROM work_items WHERE id = ?").bind(id),
+    const item = await db.prepare("SELECT kind FROM work_items WHERE id=$1").bind(id).first<{kind:string}>();
+    if (!item) return Response.json({error:"Record not found"},{status:404});
+    if (item.kind === "finance" && !(await getChatGPTUser("finance"))) return Response.json({error:"Only managers can access finances."},{status:403});
+    const leadAssets = await db.prepare("SELECT object_key FROM lead_assets WHERE lead_id = $1").bind(id).all<{ object_key: string }>();
+    const projectAssets = await db.prepare("SELECT object_key FROM project_assets WHERE project_id = $1").bind(id).all<{ object_key: string }>();
+    await db.batch([
+      db.prepare("UPDATE work_items SET task_source_id = NULL WHERE task_source_kind = 'order' AND task_source_id = $1").bind(id),
+      db.prepare("DELETE FROM task_generations WHERE source_key = $1").bind(`order:${id}`),
+      db.prepare("UPDATE work_items SET source_lead_id = NULL WHERE source_lead_id = $1").bind(id),
+      db.prepare("UPDATE work_items SET project_id = NULL WHERE project_id = $1").bind(id),
+      db.prepare("DELETE FROM work_items WHERE id = $1").bind(id),
     ]);
-    if (env.BUCKET) {
-      await Promise.all([...leadAssets.results, ...projectAssets.results].map(asset => env.BUCKET!.delete(asset.object_key).catch(error => console.error("Unable to clean up work asset", error))));
+    if (storage) {
+      await Promise.all([...leadAssets.results, ...projectAssets.results].map(asset => storage.delete(asset.object_key).catch(error => console.error("Unable to clean up work asset", error))));
     }
     return Response.json({ ok: true });
   } catch (error) {

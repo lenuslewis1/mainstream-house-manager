@@ -1,27 +1,16 @@
-import { env } from "cloudflare:workers";
+import { database as db } from "../../../db/client";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const runtime = "edge";
 
-export function parseContact(input: Record<string, unknown>) {
-  const kind = String(input.kind ?? "");
-  const name = String(input.name ?? "").trim();
-  const contactPerson = String(input.contactPerson ?? "").trim();
-  const phone = String(input.phone ?? "").trim();
-  const email = String(input.email ?? "").trim();
-  const specialty = String(input.specialty ?? "").trim();
-  const location = String(input.location ?? "").trim();
-  const notes = String(input.notes ?? "").trim();
-  if (!["customer", "partner"].includes(kind) || !name || name.length > 160 || contactPerson.length > 160 || phone.length > 60 || email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || specialty.length > (kind === "partner" ? 4000 : 160) || location.length > 255 || notes.length > 4000) return null;
-  return { kind, name, contactPerson, phone, email, specialty, location, notes };
-}
+import { parseContact } from "./validation";
 
 export async function GET(request: Request) {
   if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
   const kind = new URL(request.url).searchParams.get("kind");
   if (kind !== "customer" && kind !== "partner") return Response.json({ error: "Choose customers or partners." }, { status: 400 });
   try {
-    const result = await env.DB!.prepare("SELECT * FROM contacts WHERE kind = ? ORDER BY name COLLATE NOCASE").bind(kind).all();
+    const result = await db.prepare("SELECT * FROM contacts WHERE kind = $1 ORDER BY LOWER(name)").bind(kind).all();
     return Response.json({ contacts: result.results });
   } catch (error) {
     console.error("Unable to load contacts", error);
@@ -37,7 +26,7 @@ export async function POST(request: Request) {
   const id = crypto.randomUUID();
   const now = Date.now();
   try {
-    await env.DB!.prepare("INSERT INTO contacts (id, kind, name, contact_person, phone, email, specialty, location, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    await db.prepare("INSERT INTO contacts (id, kind, name, contact_person, phone, email, specialty, location, notes, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)")
       .bind(id, contact.kind, contact.name, contact.contactPerson, contact.phone, contact.email, contact.specialty, contact.location, contact.notes, now, now).run();
     return Response.json({ id }, { status: 201 });
   } catch (error) {

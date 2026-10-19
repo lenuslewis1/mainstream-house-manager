@@ -1,7 +1,7 @@
-import { env } from "cloudflare:workers";
+import { database as db } from "../../../db/client";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { rememberMember } from "../../../lib/team";
-import { validMoney } from "../../../lib/finance";
+import { validMoney, withOrderExpenses, type FinanceRecord } from "../../../lib/finance";
 
 import { parseFinanceDetails } from "../../../lib/finance-reports";
 
@@ -24,8 +24,8 @@ export async function GET() {
   if (!user) return Response.json({ error: "Sign in required" }, { status: 401 });
   try {
     await rememberMember(user);
-    const data = await env.DB!.prepare("SELECT * FROM work_items ORDER BY updated_at DESC").all();
-    return Response.json({ items: data.results });
+    const data = await db.prepare("SELECT * FROM work_items WHERE ($1 IN ('Manager','Super admin') OR kind != 'finance') ORDER BY updated_at DESC").bind(user.role).all();
+    return Response.json({ items: user.role === "Manager" || user.role === "Super admin" ? withOrderExpenses(data.results as FinanceRecord[]) : data.results });
   } catch (error) {
     console.error("Unable to load work items", error);
     return Response.json({ error: "Your records are temporarily unavailable." }, { status: 503 });
@@ -37,6 +37,7 @@ export async function POST(request: Request) {
   const input = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!input || typeof input !== "object") return Response.json({ error: "Invalid request" }, { status: 400 });
   const kind = String(input.kind ?? "");
+  if (kind === "finance" && !(await getChatGPTUser("finance"))) return Response.json({error:"Only managers can access finances."},{status:403});
   const title = String(input.title ?? "").trim();
   const status = String(input.status ?? "");
   const client = String(input.client ?? "").trim();
@@ -61,19 +62,20 @@ export async function POST(request: Request) {
   const id = crypto.randomUUID();
   const now = Date.now();
   try {
+    if (kind === "finance" && direction === "Expense" && projectId) return Response.json({error:"Order costs already count as expenses. Edit the order costs instead of adding a second expense."},{status:400});
     if (kind === "finance" && projectId) {
-      const project = await env.DB!.prepare("SELECT currency FROM work_items WHERE id = ? AND kind IN ('project', 'booking')").bind(projectId).first<{currency: string}>();
+      const project = await db.prepare("SELECT currency FROM work_items WHERE id = $1 AND kind IN ('project', 'booking')").bind(projectId).first<{currency: string}>();
       if (!project) return Response.json({ error: "Choose an existing order." }, { status: 400 });
       if ((project.currency || "GHS") !== currency) return Response.json({ error: "Finance entry currency must match the order currency." }, { status: 400 });
     }
-    if (vendorId && (kind !== "project" && kind !== "booking" || !(await env.DB!.prepare("SELECT id FROM contacts WHERE id = ? AND kind = 'partner'").bind(vendorId).first()))) {
+    if (vendorId && (kind !== "project" && kind !== "booking" || !(await db.prepare("SELECT id FROM contacts WHERE id = $1 AND kind = 'partner'").bind(vendorId).first()))) {
       return Response.json({ error: "Choose an existing vendor." }, { status: 400 });
     }
-    const statements = [env.DB!.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, vendor_id, created_at, updated_at, category, payment_method, reference, cost_items) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    const statements = [db.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, vendor_id, created_at, updated_at, category, payment_method, reference, cost_items) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)")
       .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", ["finance", "project", "booking"].includes(kind) ? currency : "", kind === "finance" ? direction : "", ["project", "booking"].includes(kind) ? price : "0", ["project", "booking"].includes(kind) ? cost : "0", kind === "finance" && projectId ? projectId : null, vendorId || null, now, now, kind === "finance" ? details?.category || "" : "", kind === "finance" ? details?.paymentMethod || "" : "", kind === "finance" ? details?.reference || "" : "", JSON.stringify(["project", "booking"].includes(kind) ? costItems : []))];
-    if (client && !(kind === "finance" && direction === "Expense")) statements.push(env.DB!.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT ?, 'customer', ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND TRIM(name) = ? COLLATE NOCASE)")
+    if (client && !(kind === "finance" && direction === "Expense")) statements.push(db.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT $1, 'customer', $2, $3, $4 WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND LOWER(TRIM(name)) = LOWER($5))")
       .bind(crypto.randomUUID(), client, now, now, client));
-    await env.DB!.batch(statements);
+    await db.batch(statements);
     const tasks = ["project","booking"].includes(kind) ? await autoTasks("order",id) : undefined;
     return Response.json({ id, tasks }, { status: 201 });
   } catch (error) {

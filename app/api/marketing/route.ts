@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { database as db } from "../../../db/client";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { aiResponse, AIServiceError } from "../../../lib/ai";
 import { channels, formats, marketingServices, parseMarketingPost, validDate } from "../../../lib/marketing";
@@ -9,7 +9,7 @@ export const runtime = "edge";
 const schema = {name:"marketing_plan",strict:true as const,schema:{type:"object",properties:{posts:{type:"array",items:{type:"object",properties:Object.fromEntries(["title","service","date","channel","format","caption","brief","time","pillar","message","purpose","hashtag"].map(k=>[k,{type:"string"}])),required:["title","service","date","channel","format","caption","brief","time","pillar","message","purpose","hashtag"],additionalProperties:false}}},required:["posts"],additionalProperties:false}};
 export async function GET() {
   if (!(await getChatGPTUser())) return Response.json({error:"Sign in required"},{status:401});
-  try { const data=await env.DB!.prepare("SELECT * FROM marketing_posts ORDER BY date, time, created_at").all(); return Response.json({posts:data.results}); }
+  try { const data=await db.prepare("SELECT * FROM marketing_posts ORDER BY date, time, created_at").all(); return Response.json({posts:data.results}); }
   catch { return Response.json({error:"Could not load marketing posts."},{status:503}); }
 }
 export async function POST(request: Request) {
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     if (posts.some(p=>!p)) return Response.json({error:"Check post title, date, service and channel."},{status:400});
     const now=Date.now();
     const ids=posts.map(()=>crypto.randomUUID());
-    await env.DB!.batch(posts.map((p,i)=>env.DB!.prepare("INSERT INTO marketing_posts (id,title,service,date,channel,format,caption,brief,campaign,status,created_at,updated_at,time,pillar,message,purpose,hashtag) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(ids[i],p!.title,p!.service,p!.date,p!.channel,p!.format,p!.caption,p!.brief,p!.campaign,p!.status,now,now,p!.time,p!.pillar,p!.message,p!.purpose,p!.hashtag)));
+    await db.batch(posts.map((p,i)=>db.prepare("INSERT INTO marketing_posts (id,title,service,date,channel,format,caption,brief,campaign,status,created_at,updated_at,time,pillar,message,purpose,hashtag) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)").bind(ids[i],p!.title,p!.service,p!.date,p!.channel,p!.format,p!.caption,p!.brief,p!.campaign,p!.status,now,now,p!.time,p!.pillar,p!.message,p!.purpose,p!.hashtag)));
     const tasks=await Promise.all(ids.map(id=>autoTasks("content",id)));
     return Response.json({ok:true,tasks},{status:201});
   } catch (e) { console.error("Marketing request failed",e);return Response.json({error:e instanceof AIServiceError ? e.message : "Could not save marketing posts."},{status:e instanceof AIServiceError ? e.status : 503}); }
@@ -52,11 +52,11 @@ export async function PATCH(request: Request) {
   if (!(await getChatGPTUser())) return Response.json({error:"Sign in required"},{status:401});
   const input=await request.json().catch(()=>null) as Input | null,p=parseMarketingPost(input?.post);
   if (!p || typeof input?.id!=="string") return Response.json({error:"Check the post details."},{status:400});
-  try { const result=await env.DB!.prepare("UPDATE marketing_posts SET title=?,service=?,date=?,channel=?,format=?,caption=?,brief=?,campaign=?,status=?,updated_at=?,time=?,pillar=?,message=?,purpose=?,hashtag=? WHERE id=?").bind(p.title,p.service,p.date,p.channel,p.format,p.caption,p.brief,p.campaign,p.status,Date.now(),p.time,p.pillar,p.message,p.purpose,p.hashtag,input.id).run();const tasks=result.meta.changes ? await autoTasks("content",input.id) : undefined;return Response.json({ok:true,tasks},{status:result.meta.changes ? 200 : 404}); }
+  try { const result=await db.prepare("UPDATE marketing_posts SET title=$1,service=$2,date=$3,channel=$4,format=$5,caption=$6,brief=$7,campaign=$8,status=$9,updated_at=$10,time=$11,pillar=$12,message=$13,purpose=$14,hashtag=$15 WHERE id=$16").bind(p.title,p.service,p.date,p.channel,p.format,p.caption,p.brief,p.campaign,p.status,Date.now(),p.time,p.pillar,p.message,p.purpose,p.hashtag,input.id).run();const tasks=result.meta.changes ? await autoTasks("content",input.id) : undefined;return Response.json({ok:true,tasks},{status:result.meta.changes ? 200 : 404}); }
   catch { return Response.json({error:"Could not update post."},{status:503}); }
 }
 export async function DELETE(request: Request) {
   if (!(await getChatGPTUser())) return Response.json({error:"Sign in required"},{status:401});
   const id=new URL(request.url).searchParams.get("id");if (!id) return Response.json({error:"Choose a post."},{status:400});
-  try { await env.DB!.batch([env.DB!.prepare("UPDATE work_items SET task_source_id=NULL WHERE task_source_kind='content' AND task_source_id=?").bind(id),env.DB!.prepare("DELETE FROM task_generations WHERE source_key=?").bind(`content:${id}`),env.DB!.prepare("DELETE FROM marketing_posts WHERE id=?").bind(id)]);return Response.json({ok:true}); }catch{return Response.json({error:"Could not delete post."},{status:503});}
+  try { await db.batch([db.prepare("UPDATE work_items SET task_source_id=NULL WHERE task_source_kind='content' AND task_source_id=$1").bind(id),db.prepare("DELETE FROM task_generations WHERE source_key=$1").bind(`content:${id}`),db.prepare("DELETE FROM marketing_posts WHERE id=$1").bind(id)]);return Response.json({ok:true}); }catch{return Response.json({error:"Could not delete post."},{status:503});}
 }

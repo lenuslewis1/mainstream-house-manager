@@ -1,10 +1,11 @@
-import { cents, totals, type FinanceRecord } from "./finance";
-export const financeCategories = ["Sales", "Printing & production", "Materials", "Delivery", "Design & technology", "Marketing", "Rent & utilities", "Salary", "Allowance", "Staff", "Fees", "Other"];
+import { cents, totals, withOrderExpenses, type FinanceRecord } from "./finance";
+export const financeCategories = ["Order costs", "Sales", "Printing & production", "Materials", "Delivery", "Design & technology", "Marketing", "Rent & utilities", "Salary", "Allowance", "Staff", "Fees", "Other"];
 export const paymentMethods = ["Cash", "Mobile money", "Bank transfer", "Card", "Other"];
 export type ReportRecord = FinanceRecord & { id: string; title: string; client: string; due_date: string; created_at: number; category?: string; payment_method?: string; reference?: string; vendor_id?: string | null; notes: string; service: string };
 export function recordDate(record: Pick<ReportRecord, "due_date" | "created_at" | "kind">) { return record.kind === "finance" && record.due_date ? record.due_date : new Date(record.created_at).toISOString().slice(0,10); }
 export function inPeriod(record: ReportRecord, start: string, end: string) { const date = recordDate(record); return (!start || date >= start) && (!end || date <= end); }
 export function orderBalances(records: ReportRecord[], currency: string) {
+  records=withOrderExpenses(records);
   return records.filter(record => ["project","booking"].includes(record.kind) && (record.currency || "GHS") === currency).map(order => {
     const linked = records.filter(record => record.kind === "finance" && record.project_id === order.id && (record.currency || "GHS") === currency);
     const paid = totals(linked), price = cents(order.price), cost = cents(order.cost);

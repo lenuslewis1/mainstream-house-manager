@@ -3,7 +3,7 @@ import { cents, validMoney } from "./finance";
 export type InvoiceLine = { description: string; quantity: number; unitPrice: string };
 export type InvoiceRecord = {
   id: number;
-  order_id: string;
+  order_id: string | null;
   issue_date: string;
   due_date: string;
   bill_to_name: string;

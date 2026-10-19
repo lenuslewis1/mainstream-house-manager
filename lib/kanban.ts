@@ -32,5 +32,5 @@ export function describeTaskChange(old:Task,next:TaskInput):string {
   return changes.join(" · ") || "Saved task";
 }
 
-export type TeamMember={id:string;name:string;email:string};
+export type TeamMember={id:string;name:string;email:string;role:import("./roles").TeamRole};
 export type TaskColumn={id:string;name:string;position:number;updated_at:number};

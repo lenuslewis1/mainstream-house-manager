@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { database as db } from "../../../../../db/client";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 
 import { autoTasks } from "../../../../../lib/auto-tasks";
@@ -10,19 +10,19 @@ type Lead = { id: string; title: string; client: string; service: string; notes:
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
   const { id } = await params;
-  if (!env.DB) return Response.json({ error: "Records are temporarily unavailable." }, { status: 503 });
+  if (!db) return Response.json({ error: "Records are temporarily unavailable." }, { status: 503 });
   try {
-    const lead = await env.DB.prepare("SELECT id, title, client, service, notes, status FROM work_items WHERE id = ? AND kind = 'lead'").bind(id).first<Lead>();
+    const lead = await db.prepare("SELECT id, title, client, service, notes, status FROM work_items WHERE id = $1 AND kind = 'lead'").bind(id).first<Lead>();
     if (!lead) return Response.json({ error: "Lead not found" }, { status: 404 });
-    const existing = await env.DB.prepare("SELECT id FROM work_items WHERE kind = 'project' AND source_lead_id = ?").bind(id).first<{ id: string }>();
+    const existing = await db.prepare("SELECT id FROM work_items WHERE kind = 'project' AND source_lead_id = $1").bind(id).first<{ id: string }>();
     if (existing) return Response.json({ id: existing.id, alreadyConverted: true });
     if (!lead.service?.trim()) return Response.json({ error: "Assign a service to this lead before converting it to an order." }, { status: 400 });
     const projectId = crypto.randomUUID();
     const now = Date.now();
-    await env.DB.batch([
-      env.DB.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, source_lead_id, created_at, updated_at) VALUES (?, 'project', ?, ?, ?, 'Planning', '', ?, '', 'GHS', '', ?, ?, ?)")
+    await db.batch([
+      db.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, source_lead_id, created_at, updated_at) VALUES ($1, 'project', $2, $3, $4, 'Planning', '', $5, '', 'GHS', '', $6, $7, $8)")
         .bind(projectId, lead.title, lead.client, lead.service, lead.notes, id, now, now),
-      env.DB.prepare("UPDATE work_items SET status = 'Won', updated_at = ? WHERE id = ? AND kind = 'lead'").bind(now, id),
+      db.prepare("UPDATE work_items SET status = 'Won', updated_at = $1 WHERE id = $2 AND kind = 'lead'").bind(now, id),
     ]);
     const tasks = await autoTasks("order",projectId);
     return Response.json({ id: projectId, tasks }, { status: 201 });

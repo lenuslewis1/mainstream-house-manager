@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792406498058,
+      "tag": "0000_light_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792408850614,
+      "tag": "0001_dazzling_mystique",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792412106313,
+      "tag": "0002_overrated_beyonder",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792413227845,
+      "tag": "0003_preserve_existing_manager",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792414288683,
+      "tag": "0004_protect_super_admin",
+      "breakpoints": true
+    }
+  ]
+}
