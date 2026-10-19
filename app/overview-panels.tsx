@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ArrowRight, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { financialSummary, money } from "../lib/finance";
-import { recordDate } from "../lib/finance-reports";
+import { orderBalances, recordDate } from "../lib/finance-reports";
 import type { CalendarItem, Deliverable } from "../lib/calendar-types";
 
 type OverviewItem = CalendarItem & { amount: string; currency: string; direction: string; price: string; cost: string; project_id: string | null; created_at: number };
@@ -17,6 +17,7 @@ export default function OverviewPanels({ items, deliverables, loading, onOpenCal
   const [currencyChoice, setCurrencyChoice] = useState("GHS");
   const currency = currencies.includes(currencyChoice) ? currencyChoice : currencies[0] || "GHS";
   const finance = financialSummary(items, currency);
+  const unrecordedCosts=orderBalances(items.map(i=>({...i,notes:i.notes||"",service:i.service||"",client:i.client||""})),currency).filter(b=>b.order.status!=="Cancelled").reduce((sum,b)=>sum+b.costRemaining,0);
   const today = dateKey(new Date());
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const events = useMemo<Event[]>(() => [
@@ -53,6 +54,7 @@ export default function OverviewPanels({ items, deliverables, loading, onOpenCal
           <div className="overview-net-profit"><span>{finance.profit<0?"Net loss so far":"Net profit so far"}</span><strong>{money(finance.profit, currency)}</strong><small>After all recorded expenses</small></div>
         </div>
         <p className="overview-caption">Profit deducts production, salaries, allowances and all other recorded payouts. Only completed payments count; unpaid costs are excluded.</p>
+        {unrecordedCosts>0&&<p className="overview-caption fin-warning">Order costs without expense records: {money(unrecordedCosts,currency)}. If paid, record them in Finances so Money spent and profit include them.</p>}
         {finance.linkedEntryCount > 0 && <p className="overview-caption overview-payment-caption">Order-linked payments: {money(finance.linkedReceived, currency)} received · {money(finance.linkedPaid, currency)} paid</p>}
         {(finance.pendingIncome > 0 || finance.pendingExpenses > 0) && <p className="overview-caption overview-payment-caption">Pending, excluded from totals: {money(finance.pendingIncome, currency)} income · {money(finance.pendingExpenses, currency)} expenses</p>}
         <p className="overview-caption overview-chart-caption">Completed cash receipts and payouts · last 6 months · {currency}</p>
