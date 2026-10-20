@@ -1,4 +1,5 @@
 "use client";
+import TopScrollArea from "../top-scroll-area";
 
 import PomaaForm from "../pomaa-form";
 import { useCallback, useEffect, useState } from "react";
@@ -83,7 +84,7 @@ export default function InvoiceEditor({ id }: { id: string }) {
         <label>Payment details<textarea value={draft.payment_details} onChange={event => change("payment_details", event.target.value)} rows={4} maxLength={1000}/></label>
         <p className="invoice-editor-total">Grand total <strong>{money(invoiceTotal(draft.line_items), draft.currency)}</strong></p>
       </section>
-      <div className="invoice-preview"><span>PRINT PREVIEW · A4</span><InvoicePaper invoice={invoice} draft={draft}/></div>
+      <TopScrollArea className="invoice-preview"><span>PRINT PREVIEW · A4</span><InvoicePaper invoice={invoice} draft={draft}/></TopScrollArea>
     </div>
   </main>;
 }
