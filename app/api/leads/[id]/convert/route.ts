@@ -1,3 +1,4 @@
+import { memberName } from "../../../../../lib/team";
 import { database as db } from "../../../../../db/client";
 import { getChatGPTUser } from "../../../../chatgpt-auth";
 
@@ -8,7 +9,8 @@ export const runtime = "edge";
 type Lead = { id: string; title: string; client: string; service: string; notes: string; status: string };
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
+  const actor = await getChatGPTUser();
+  if (!actor) return Response.json({ error: "Sign in required" }, { status: 401 });
   const { id } = await params;
   if (!db) return Response.json({ error: "Records are temporarily unavailable." }, { status: 503 });
   try {
@@ -20,8 +22,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const projectId = crypto.randomUUID();
     const now = Date.now();
     await db.batch([
-      db.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, source_lead_id, created_at, updated_at) VALUES ($1, 'project', $2, $3, $4, 'Planning', '', $5, '', 'GHS', '', $6, $7, $8)")
-        .bind(projectId, lead.title, lead.client, lead.service, lead.notes, id, now, now),
+      db.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, source_lead_id, created_at, updated_at, created_by_id, created_by_name) VALUES ($1, 'project', $2, $3, $4, 'Planning', '', $5, '', 'GHS', '', $6, $7, $8, $9, $10)")
+        .bind(projectId, lead.title, lead.client, lead.service, lead.notes, id, now, now, actor.userId, await memberName(actor)),
       db.prepare("UPDATE work_items SET status = 'Won', updated_at = $1 WHERE id = $2 AND kind = 'lead'").bind(now, id),
     ]);
     const tasks = await autoTasks("order",projectId);

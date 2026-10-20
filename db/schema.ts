@@ -27,6 +27,8 @@ export const workItems = pgTable("work_items", {
   projectId: text("project_id"),
   vendorId: text("vendor_id"),
   sourceLeadId: text("source_lead_id"),
+  createdById: text("created_by_id").notNull().default(""),
+  createdByName: text("created_by_name").notNull().default(""),
   taskSourceKind: text("task_source_kind").notNull().default(""),
   taskSourceId: text("task_source_id"),
   taskKey: text("task_key"),

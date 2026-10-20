@@ -1,6 +1,6 @@
 import { database as db } from "../../../db/client";
 import { getChatGPTUser } from "../../chatgpt-auth";
-import { rememberMember } from "../../../lib/team";
+import { memberName, rememberMember } from "../../../lib/team";
 import { validMoney, withOrderExpenses, type FinanceRecord } from "../../../lib/finance";
 
 import { parseFinanceDetails } from "../../../lib/finance-reports";
@@ -33,7 +33,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Sign in required" }, { status: 401 });
+  const actor = await getChatGPTUser();
+  if (!actor) return Response.json({ error: "Sign in required" }, { status: 401 });
   const input = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!input || typeof input !== "object") return Response.json({ error: "Invalid request" }, { status: 400 });
   const kind = String(input.kind ?? "");
@@ -71,8 +72,8 @@ export async function POST(request: Request) {
     if (vendorId && (kind !== "project" && kind !== "booking" || !(await db.prepare("SELECT id FROM contacts WHERE id = $1 AND kind = 'partner'").bind(vendorId).first()))) {
       return Response.json({ error: "Choose an existing vendor." }, { status: 400 });
     }
-    const statements = [db.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, vendor_id, created_at, updated_at, category, payment_method, reference, cost_items) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)")
-      .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", ["finance", "project", "booking"].includes(kind) ? currency : "", kind === "finance" ? direction : "", ["project", "booking"].includes(kind) ? price : "0", ["project", "booking"].includes(kind) ? cost : "0", kind === "finance" && projectId ? projectId : null, vendorId || null, now, now, kind === "finance" ? details?.category || "" : "", kind === "finance" ? details?.paymentMethod || "" : "", kind === "finance" ? details?.reference || "" : "", JSON.stringify(["project", "booking"].includes(kind) ? costItems : []))];
+    const statements = [db.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, vendor_id, created_at, updated_at, category, payment_method, reference, cost_items, created_by_id, created_by_name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)")
+      .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", ["finance", "project", "booking"].includes(kind) ? currency : "", kind === "finance" ? direction : "", ["project", "booking"].includes(kind) ? price : "0", ["project", "booking"].includes(kind) ? cost : "0", kind === "finance" && projectId ? projectId : null, vendorId || null, now, now, kind === "finance" ? details?.category || "" : "", kind === "finance" ? details?.paymentMethod || "" : "", kind === "finance" ? details?.reference || "" : "", JSON.stringify(["project", "booking"].includes(kind) ? costItems : []), actor.userId, await memberName(actor))];
     if (client && !(kind === "finance" && direction === "Expense")) statements.push(db.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT $1, 'customer', $2, $3, $4 WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND LOWER(TRIM(name)) = LOWER($5))")
       .bind(crypto.randomUUID(), client, now, now, client));
     await db.batch(statements);
