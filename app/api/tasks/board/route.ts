@@ -2,6 +2,7 @@ import { database as db } from "../../../../db/client";
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { parseTask, describeTaskChange, taskInput, type Task } from "../../../../lib/kanban";
 import { columns, rememberMember, memberName } from "../../../../lib/team";
+import { notifyTaskAssignee } from "../../../../lib/task-assignment-email";
 export const runtime="edge";
 export async function GET(request:Request){
  const user=await getChatGPTUser("workspace");if(!user)return Response.json({error:"Sign in required"},{status:401});
@@ -17,10 +18,12 @@ export async function POST(request:Request){
  const input=await request.json().catch(()=>null) as Record<string,unknown>|null;const task=parseTask(input,(await columns()).map(c=>c.id));if(!task)return Response.json({error:"Check the task fields."},{status:400});
  const assigned=await resolveAssignee(task);if(!assigned)return Response.json({error:"Choose a signed-in team member."},{status:400});
  const id=crypto.randomUUID(),now=Date.now();
- try {await db.batch([
+ try {const author=await memberName(user);await db.batch([
  db.prepare("INSERT INTO work_items(id,kind,title,status,notes,due_date,task_assignee,task_priority,task_checklist,task_labels,task_assignee_id,task_reference_url,task_reference_date,created_at,updated_at) VALUES($1,'task',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)").bind(id,task.title,task.status,task.notes,task.dueDate,task.assignee,task.priority,JSON.stringify(task.checklist),task.labels,task.assigneeId,task.referenceUrl,task.referenceDate,now,now),
- db.prepare("INSERT INTO task_updates(id,task_id,author,body,kind,created_at) VALUES($1,$2,$3,$4,'activity',$5)").bind(crypto.randomUUID(),id,await memberName(user),`Created task${task.assignee?` · Assigned to ${task.assignee}`:""}`,now)
- ]);return Response.json({id},{status:201});}catch{return Response.json({error:"Could not save task."},{status:503});}
+ db.prepare("INSERT INTO task_updates(id,task_id,author,body,kind,created_at) VALUES($1,$2,$3,$4,'activity',$5)").bind(crypto.randomUUID(),id,author,`Created task${task.assignee?` · Assigned to ${task.assignee}`:""}`,now)
+ ]);
+ const notification=await notifyTaskAssignee({id,version:now,task,assignedBy:author});
+ return Response.json({id,notification},{status:201});}catch{return Response.json({error:"Could not save task."},{status:503});}
 }
 export async function PATCH(request:Request){
  const user=await getChatGPTUser("workspace");if(!user)return Response.json({error:"Sign in required"},{status:401});
@@ -42,9 +45,12 @@ export async function PATCH(request:Request){
  const boardColumns=await columns();const columnName=(id:string)=>boardColumns.find(c=>c.id===id)?.name||id;
  const activity=describeTaskChange(old,task).replace(`Moved from ${old.status} to ${task.status}`,`Moved from ${columnName(old.status)} to ${columnName(task.status)}`);
  const now=Math.max(Date.now(),old.updated_at+1);
+ const author=await memberName(user);
  const result=await db.prepare("WITH changed AS (UPDATE work_items SET title=$1,status=$2,notes=$3,due_date=$4,task_assignee=$5,task_priority=$6,task_checklist=$7,task_labels=$8,task_assignee_id=$9,task_reference_url=$10,task_reference_date=$11,updated_at=$12 WHERE id=$13 AND kind='task' AND updated_at=$14 RETURNING id) INSERT INTO task_updates(id,task_id,author,body,kind,created_at) SELECT $15,id,$16,$17,'activity',$12 FROM changed")
- .bind(task.title,task.status,task.notes,task.dueDate,task.assignee,task.priority,JSON.stringify(task.checklist),task.labels,task.assigneeId,task.referenceUrl,task.referenceDate,now,input.id,input.version,crypto.randomUUID(),await memberName(user),activity).run();
- if(!result.meta.changes)return Response.json({error:"Someone updated this task. Refresh and retry."},{status:409});return Response.json({ok:true});
+ .bind(task.title,task.status,task.notes,task.dueDate,task.assignee,task.priority,JSON.stringify(task.checklist),task.labels,task.assigneeId,task.referenceUrl,task.referenceDate,now,input.id,input.version,crypto.randomUUID(),author,activity).run();
+ if(!result.meta.changes)return Response.json({error:"Someone updated this task. Refresh and retry."},{status:409});
+ const notification=await notifyTaskAssignee({id:input.id,version:now,task,previousAssigneeId:old.task_assignee_id,assignedBy:author});
+ return Response.json({ok:true,notification});
  }catch{return Response.json({error:"Could not save the update. Please retry."},{status:503});}
 }
 

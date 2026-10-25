@@ -43,6 +43,13 @@
       "when": 1792506865278,
       "tag": "0005_work_item_creators",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792933375240,
+      "tag": "0006_service_pricing",
+      "breakpoints": true
     }
   ]
 }

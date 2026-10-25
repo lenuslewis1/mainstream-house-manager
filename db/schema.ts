@@ -2,6 +2,18 @@ import { index, bigint, integer, pgTable, serial, text, uniqueIndex, customType,
 import { sql } from "drizzle-orm";
 
 const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
+export const servicePrices = pgTable("service_prices", {
+  id: text("id").primaryKey(),
+  service: text("service").notNull(),
+  option: text("option").notNull().default(""),
+  amount: text("amount").notNull().default(""),
+  currency: text("currency").notNull().default("GHS"),
+  unit: text("unit").notNull().default("per project"),
+  mode: text("mode").notNull().default("fixed"),
+  minimum: integer("minimum").notNull().default(1),
+  notes: text("notes").notNull().default(""),
+  updatedAt: bigint("updated_at", { mode:"number" }).notNull(),
+}, table => [index("service_prices_service_idx").on(table.service)]);
 export const storedFiles = pgTable("stored_files", {
   objectKey: text("object_key").primaryKey(),
   contentType: text("content_type").notNull(),

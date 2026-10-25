@@ -286,6 +286,10 @@ td{border-color:#f2eaf3;color:#6a5b70}
 .order-group-heading p{font-size:13px;color:#705e7d;margin:0 0 16px}
 .order-group-empty{padding:28px;text-align:center;color:#705e7d;border:1px dashed #e3d4e9;border-radius:10px}
 .record-detail-trigger{cursor:pointer}
+.payment-confirm-button{background:#edf7ef!important;color:#28633b!important;border:1px solid #cde5d2!important}
+.payment-confirm-button:hover:not(:disabled){background:#def0e2!important}
+.payment-confirm-button.payment-settled{opacity:1;cursor:default;background:#f2f6f3!important;color:#52715a!important}
+.payment-notice{margin:0 24px 16px;padding:12px 15px;border:1px solid #cde5d2;border-radius:8px;background:#edf7ef;color:#28633b;font-size:13px}
 .record-detail-trigger:hover>td{background:#faf6fc}
 .record-detail-trigger:focus-visible{outline:2px solid #d83088;outline-offset:-2px}
 .record-detail-backdrop{z-index:30;background:#160c22a6;backdrop-filter:blur(4px)}

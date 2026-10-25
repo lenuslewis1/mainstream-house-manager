@@ -1,0 +1,30 @@
+const fs=require('node:fs'),ts=require('typescript'),assert=require('node:assert/strict');
+function load(file,imports={}){const mod={exports:{}};new Function('require','module','exports',ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>name in imports?imports[name]:name.startsWith('.')?load(require('node:path').resolve(require('node:path').dirname(file),name+'.ts'),imports):require(name),mod,mod.exports);return mod.exports;}
+const {database}=load('db/client.ts');
+const {parsePrice,pricingServices}=load('lib/pricing.ts');
+const {can}=load('lib/roles.ts');
+let role='Manager';
+const route=load('app/api/pricing/route.ts',{'../../../db/client':{database},'../../chatgpt-auth':{getChatGPTUser:async capability=>role&&can(role,capability)?{role}:null}});
+const id=crypto.randomUUID(),service=pricingServices[0].service;
+const price={id,service,option:'Disposable pricing QA option',amount:'125.50',currency:'GHS',unit:'per project',mode:'fixed',minimum:1,notes:'Temporary pricing route check',version:0};
+const req=body=>new Request('http://localhost/api/pricing',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+(async()=>{
+ assert.equal(new Set(pricingServices.map(p=>p.id)).size,pricingServices.length);
+ for(const invalid of [{amount:'-1'},{amount:'1e3'},{currency:'INVALID'},{minimum:0},{version:-1},{service:'Unknown'},{unit:''},{option:''}])assert.equal(parsePrice({...price,...invalid}),null);
+ assert.equal(parsePrice({...price,mode:'quote',amount:''}).amount,'');
+ role=null;assert.equal((await route.GET()).status,403);assert.equal((await route.PUT(req(price))).status,403);
+ role='Intern';assert.equal((await route.GET()).status,403);
+ role='Team member';assert.equal((await route.GET()).status,200);assert.equal((await route.PUT(req(price))).status,403);assert.equal((await route.DELETE(req({id,version:1}))).status,403);
+ role='Manager';assert.equal((await route.PUT(req(price))).status,200);
+ assert.equal((await route.PUT(req(price))).status,409);
+ let rows=(await (await route.GET()).json()).prices;let saved=rows.find(p=>p.id===id);assert.equal(saved.amount,'125.50');assert.equal(saved.minimum,1);
+ assert.equal((await route.PUT(req({...price,version:saved.updated_at,mode:'from',amount:'250',minimum:100}))).status,200);
+ assert.equal((await route.PUT(req({...price,version:saved.updated_at,amount:'1'}))).status,409);
+ saved=(await (await route.GET()).json()).prices.find(p=>p.id===id);assert.equal(saved.amount,'250');assert.equal(saved.minimum,100);assert.equal(saved.mode,'from');
+ assert.equal((await route.PUT(req({...price,version:saved.updated_at,mode:'quote',amount:''}))).status,200);
+ assert.equal((await route.DELETE(req({id,version:saved.updated_at}))).status,409);
+ saved=(await (await route.GET()).json()).prices.find(p=>p.id===id);assert.equal(saved.mode,'quote');assert.equal(saved.amount,'');
+ assert.equal((await route.DELETE(req({id,version:saved.updated_at}))).status,200);
+ assert.equal((await route.PUT(req({...price,version:saved.updated_at}))).status,409);
+ console.log(`PASS pricing: ${pricingServices.length} unique services, validation, read/write role enforcement, real Neon save/read/update/delete, custom quotes, quantity options, concurrent-edit protection, and deleted-row protection.`);
+})().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{await database.prepare("DELETE FROM service_prices WHERE id=$1 AND option='Disposable pricing QA option'").bind(id).run();console.log('Removed disposable pricing test data.');});
