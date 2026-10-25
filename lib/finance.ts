@@ -9,7 +9,7 @@ export function money(value: number, currency: string): string {
   return `${currency || "GHS"} ${(value / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export type FinanceRecord = { kind: string; status: string; direction: string; amount: string; currency: string; project_id?: string | null; price?: string; cost?: string; id?:string; title?:string; created_at?:number; due_date?:string; auto_order_cost?:boolean };
+export type FinanceRecord = { kind: string; status: string; direction: string; amount: string; currency: string; project_id?: string | null; price?: string; cost?: string; id?:string; title?:string; created_at?:number; due_date?:string; accounting_date?:string; auto_order_cost?:boolean };
 
 // Order costs are expenses. Existing completed expenses linked to an order
 // cover that same cost; only the uncovered amount becomes an automatic entry.
@@ -26,7 +26,13 @@ export function withOrderExpenses<T extends FinanceRecord>(records:T[]):T[] {
     const created=order.created_at || 0;
     return [{...order,id:`order-expense:${id}`,kind:"finance",title:`Order expenses · ${order.title || "Order"}`,status:"Completed",direction:"Expense",amount:(remaining/100).toFixed(2),currency,project_id:id,price:"0",cost:"0",auto_order_cost:true,client:"",category:"Order costs",payment_method:"",reference:"",due_date:new Date(created).toISOString().slice(0,10),created_at:created,notes:"Included automatically from this order's saved costs. Existing linked expenses count toward the same total."}];
   });
-  return [...base,...automatic];
+  // Keep the saved transaction date, but report every linked receipt/payout in
+  // the same period as its order costs, including installments received later.
+  const orderDates=new Map(orders.filter(order=>order.id).map(order=>[order.id,new Date(order.created_at || 0).toISOString().slice(0,10)]));
+  return [...base,...automatic].map(record=>{
+    const date=record.kind === "finance" && record.project_id ? orderDates.get(record.project_id) : undefined;
+    return date ? {...record,accounting_date:date} : record;
+  });
 }
 
 export function totals(records: FinanceRecord[]) {

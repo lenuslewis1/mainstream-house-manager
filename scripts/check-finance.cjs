@@ -20,9 +20,9 @@ const csv=reports.csvText([["=HYPERLINK(x)","name,with comma",'-25.00', 'A"B']])
 console.log("Finance checks passed: no double counting, currency separation, deposits, pending exclusions, customer credit, budget overruns, date basis, metadata, and safe CSV.");
 const {profitReport}=load("lib/profit.ts");
 const profitEntries=[...payroll,{...base,id:"linked-salary",kind:"finance",direction:"Expense",category:"Salary",amount:"20",project_id:"o"},{...base,id:"orphan",kind:"finance",direction:"Income",amount:"10",project_id:"missing"},{...base,id:"unpaid-cost",kind:"finance",direction:"Expense",status:"Pending",amount:"30",project_id:"o"}];
-const p=profitReport(profitEntries,"GHS","2026-09-15","2026-09-15");
-assert.equal(p.revenue,31000);assert.equal(p.expenses,39500);assert.equal(p.profit,-8500);
-assert.equal(p.orders.length,1);assert.equal(p.orders[0].received,30000);assert.equal(p.orders[0].spent,22000);assert.equal(p.orders[0].profit,8000);assert.equal(p.orders[0].pendingCosts,3000);
+const p=profitReport(profitEntries,"GHS","2026-09-01","2026-09-30");
+assert.equal(p.revenue,31000);assert.equal(p.expenses,77500);assert.equal(p.profit,-46500);
+assert.equal(p.orders.length,1);assert.equal(p.orders[0].received,30000);assert.equal(p.orders[0].spent,60000);assert.equal(p.orders[0].profit,-30000);assert.equal(p.orders[0].pendingCosts,3000);
 assert.equal(p.sharedIncome,1000);assert.equal(p.sharedExpenses,17500);
 assert.equal(p.orders.reduce((sum,o)=>sum+o.profit,0)+p.sharedIncome-p.sharedExpenses,p.profit);
 assert.equal(p.costs.reduce((sum,c)=>sum+c.amount,0),p.expenses);
@@ -30,4 +30,30 @@ assert.equal(p.costs.find(c=>c.label==="Salaries").amount,12000);
 assert.equal(p.costs.find(c=>c.label==="Allowances & staff").amount,2500);
 assert.equal(profitReport(profitEntries,"GHS","2026-10-01","2026-10-31").profit,0);
 const loss=profitReport([order,entries[2]],"GHS");assert.equal(loss.margin,null);assert.equal(loss.profit,-60000);assert.equal(loss.orders[0].margin,null);
-console.log("Profit checks passed: payroll deductions, direct order costs, shared costs, exact reconciliation, payment-date filtering, pending exclusions, and zero-income losses.");
+console.log("Profit checks passed: payroll deductions, direct order costs, shared costs, exact reconciliation, order-period filtering, pending exclusions, and zero-income losses.");
+
+// September costs and October/November installments all belong to September.
+const crossMonth=[order,
+ {...entries[1],due_date:"2026-10-15"},
+ {...entries[2],due_date:"2026-11-03"},
+ {...entries[4],due_date:"2026-11-20"},
+ {...entries[3],due_date:"2026-10-15"},
+];
+const assigned=finance.withOrderExpenses(crossMonth);
+assert.equal(reports.recordDate(assigned.find(r=>r.id==="deposit")),"2026-09-01");
+assert.equal(assigned.find(r=>r.id==="deposit").due_date,"2026-10-15");
+assert.deepEqual(finance.withOrderExpenses(assigned),assigned);
+const september=profitReport(crossMonth,"GHS","2026-09-01","2026-09-30");
+assert.equal(september.revenue,30000);assert.equal(september.expenses,60000);assert.equal(september.profit,-30000);
+const october=profitReport(crossMonth,"GHS","2026-10-01","2026-10-31");
+assert.equal(october.revenue,0);assert.equal(october.expenses,5000);assert.equal(october.orders.length,0);
+const november=profitReport(crossMonth,"GHS","2026-11-01","2026-11-30");
+assert.equal(november.revenue,0);assert.equal(november.expenses,0);assert.equal(november.pendingCosts,0);
+const period=assigned.filter(r=>reports.inPeriod(r,"2026-09-01","2026-09-30"));
+assert.equal(finance.financialSummary(period,"GHS").profit,september.profit);
+assert.equal(finance.totals(period).pendingIncome,70000);
+assert.equal(finance.totals(assigned.filter(r=>reports.recordDate(r).startsWith("2026-10"))).pendingIncome,0);
+assert.equal(reports.orderBalances(assigned,"GHS").filter(b=>reports.inPeriod(b.order,"2026-10-01","2026-10-31")).length,0);
+assert.equal(profitReport(crossMonth.map(r=>r.id==="o"?{...r,kind:"booking"}:r),"GHS","2026-09-01","2026-09-30").profit,-30000);
+assert.equal(profitReport(crossMonth,"GHS").profit,-35000);
+console.log("PASS monthly attribution: later receipts, installments, expenses and pending balances stay with order costs; general entries retain their dates; all-time totals are unchanged.");

@@ -13,8 +13,8 @@ assert.deepEqual(withOrderExpenses(normalized),normalized);
 assert.equal(totals(normalized.filter(r=>r.kind==='finance')).expenses,70000);
 assert.equal(financialSummary(normalized,'GHS').expenses,70000);
 assert.equal(profitReport(rows,'GHS').expenses,70000);
-assert.equal(profitReport(rows,'GHS','2026-10-01','2026-10-01').expenses,40000); // auto remainder uses order creation date; legacy payments retain their own date.
-assert.equal(profitReport(rows,'GHS','2026-12-01','2026-12-01').expenses,30000);
+assert.equal(profitReport(rows,'GHS','2026-10-01','2026-10-01').expenses,60000); // Linked payments and order costs share the order creation period.
+assert.equal(profitReport(rows,'GHS','2026-12-01','2026-12-01').expenses,10000);
 assert.equal(withOrderExpenses([{...order,cost:'100'},expense]).filter(r=>r.auto_order_cost).length,0);
 assert.equal(financialSummary([{...order,cost:'100'},expense],'GHS').expenses,20000);
 assert.equal(financialSummary([{...order,cost:'750'},expense],'GHS').expenses,75000);
