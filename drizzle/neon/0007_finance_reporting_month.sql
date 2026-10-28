@@ -1,0 +1,1 @@
+ALTER TABLE "work_items" ADD COLUMN "accounting_date" text DEFAULT '' NOT NULL;

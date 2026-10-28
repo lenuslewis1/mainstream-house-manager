@@ -17,5 +17,7 @@ export function orderBalances(records: ReportRecord[], currency: string) {
 export function csvText(rows: unknown[][]) { return "\uFEFF" + rows.map(row => row.map(value => { let text = String(value ?? ""); if ((/^[\s]*[=+@]/.test(text) || (/^[\s]*-/.test(text) && !/^-\d+(?:\.\d+)?$/.test(text)))) text = "'" + text; return `"${text.replaceAll('"','""')}"`; }).join(",")).join("\r\n"); }
 export function parseFinanceDetails(input: Record<string, unknown>) {
   const category = String(input.category ?? ""), paymentMethod = String(input.paymentMethod ?? ""), reference = String(input.reference ?? "").trim();
-  return (category && !financeCategories.includes(category)) || (paymentMethod && !paymentMethods.includes(paymentMethod)) || reference.length > 160 ? null : { category, paymentMethod, reference };
+  const month=input.reportingMonth;
+  if(month!==undefined && (typeof month!=="string" || (month!=="" && !/^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(month))))return null;
+  return (category && !financeCategories.includes(category)) || (paymentMethod && !paymentMethods.includes(paymentMethod)) || reference.length > 160 ? null : { category, paymentMethod, reference, ...(month!==undefined?{accountingDate:month?`${month}-01`:""}:{}) };
 }

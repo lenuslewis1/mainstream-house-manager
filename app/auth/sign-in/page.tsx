@@ -65,6 +65,7 @@ export default function SignIn() {
       {message && <p role="status">{message}</p>}
       <button type="submit" disabled={busy}>{busy ? "Please wait…" : mode === "signup" ? "Create account" : mode === "verify" ? "Verify email" : "Sign in"}</button>
     </form>
+    {mode === "signin" && <a className="auth-link" href="/auth/forgot-password">Forgot password?</a>}
     <button className="auth-link" disabled={busy} onClick={() => { setMode(mode === "signup" ? "signin" : "signup"); setError(""); setMessage(""); }}>{mode === "signup" ? "Already have an account? Sign in" : "First time here? Create an account"}</button>
     {mode === "signin" && <button className="auth-link" disabled={busy || !email} onClick={async () => { setBusy(true); setError(""); try { await sendCode(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not send code."); } finally { setBusy(false); } }}>Verify an existing account</button>}
   </section></main>;

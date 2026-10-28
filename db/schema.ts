@@ -29,6 +29,7 @@ export const workItems = pgTable("work_items", {
   service: text("service").notNull().default(""),
   status: text("status").notNull(),
   dueDate: text("due_date").notNull().default(""),
+  accountingDate: text("accounting_date").notNull().default(""),
   notes: text("notes").notNull().default(""),
   amount: text("amount").notNull().default(""),
   currency: text("currency").notNull().default(""),

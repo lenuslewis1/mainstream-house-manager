@@ -37,7 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (input.mode === "details") {
       if (item.kind === "finance") {
         const details = parseFinanceDetails(input);
-        if (!details) return Response.json({ error: "Check category, payment method, and reference." }, { status: 400 });
+        if (!details) return Response.json({ error: "Check the reporting month, category, payment method, and reference." }, { status: 400 });
         const title = String(input.title ?? "").trim();
         const client = String(input.client ?? "").trim();
         const notes = String(input.notes ?? "").trim();
@@ -53,8 +53,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           if ((project.currency || "GHS") !== currency) return Response.json({ error: "Finance entry currency must match the order currency." }, { status: 400 });
         }
         const now = Date.now();
-        const statements = [db.prepare("UPDATE work_items SET title = $1, client = $2, notes = $3, due_date = $4, amount = $5, currency = $6, direction = $7, project_id = $8, updated_at = $9, category = $10, payment_method = $11, reference = $12 WHERE id = $13")
-          .bind(title, client, notes, dueDate, amount, currency, direction, projectId || null, now, details.category, details.paymentMethod, details.reference, id)];
+        const statements = [db.prepare("UPDATE work_items SET title = $1, client = $2, notes = $3, due_date = $4, amount = $5, currency = $6, direction = $7, project_id = $8, updated_at = $9, category = $10, payment_method = $11, reference = $12, accounting_date = COALESCE($14,accounting_date) WHERE id = $13")
+          .bind(title, client, notes, dueDate, amount, currency, direction, projectId || null, now, details.category, details.paymentMethod, details.reference, id, details.accountingDate ?? null)];
         if (client && direction === "Income") statements.push(customerInsert(client, now));
         await db.batch(statements);
         return Response.json({ ok: true });

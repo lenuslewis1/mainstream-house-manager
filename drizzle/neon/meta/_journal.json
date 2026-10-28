@@ -50,6 +50,13 @@
       "when": 1792933375240,
       "tag": "0006_service_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793029733361,
+      "tag": "0007_finance_reporting_month",
+      "breakpoints": true
     }
   ]
 }

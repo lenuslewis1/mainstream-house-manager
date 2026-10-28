@@ -31,7 +31,7 @@ export function withOrderExpenses<T extends FinanceRecord>(records:T[]):T[] {
   const orderDates=new Map(orders.filter(order=>order.id).map(order=>[order.id,new Date(order.created_at || 0).toISOString().slice(0,10)]));
   return [...base,...automatic].map(record=>{
     const date=record.kind === "finance" && record.project_id ? orderDates.get(record.project_id) : undefined;
-    return date ? {...record,accounting_date:date} : record;
+    return date && !record.accounting_date ? {...record,accounting_date:date} : record;
   });
 }
 
