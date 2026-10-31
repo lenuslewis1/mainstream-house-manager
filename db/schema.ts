@@ -37,6 +37,7 @@ export const workItems = pgTable("work_items", {
   price: text("price").notNull().default("0"),
   cost: text("cost").notNull().default("0"),
   costItems: text("cost_items").notNull().default("[]"),
+  orderBreakdown: text("order_breakdown").notNull().default("[]"),
   projectId: text("project_id"),
   vendorId: text("vendor_id"),
   sourceLeadId: text("source_lead_id"),

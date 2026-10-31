@@ -1,6 +1,7 @@
+import { parseOrderBreakdown, type OrderBreakdown } from "./order-breakdown";
 import { cents, validMoney } from "./finance";
 
-export type InvoiceLine = { description: string; quantity: number; unitPrice: string };
+export type InvoiceLine = { description: string; quantity: number; unitPrice: string; breakdown?: OrderBreakdown[] };
 export type InvoiceRecord = {
   id: number;
   order_id: string | null;
@@ -35,7 +36,9 @@ export function parseInvoiceLines(value: unknown): InvoiceLine[] | null {
     const quantity = Number(line.quantity);
     const unitPrice = String(line.unitPrice ?? "").trim();
     if (!description || description.length > 200 || !Number.isInteger(quantity) || quantity < 1 || quantity > 9999 || !validMoney(unitPrice)) return null;
-    lines.push({ description, quantity, unitPrice });
+    const breakdown = line.breakdown === undefined ? undefined : parseOrderBreakdown(line.breakdown);
+    if (breakdown === null) return null;
+    lines.push({ description, quantity, unitPrice, ...(breakdown ? { breakdown } : {}) });
   }
   return Number.isSafeInteger(invoiceTotal(lines)) ? lines : null;
 }

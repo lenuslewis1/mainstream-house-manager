@@ -318,3 +318,11 @@ td{border-color:#f2eaf3;color:#6a5b70}
 .top-scroll-content::-webkit-scrollbar:vertical{width:initial}
 
 @media print{.top-scroll-bar{display:none!important}}
+
+.order-breakdown { margin: 1.25rem 0; padding: 1rem; border: 1px solid #e8ddea; border-radius: 12px; }
+.order-breakdown h3 { margin: 0 0 .35rem; }
+.order-breakdown p { margin: 0 0 1rem; color: #706278; font-size: .85rem; }
+.order-breakdown-row { display: grid; grid-template-columns: 1fr 1fr 100px auto; gap: .6rem; align-items: end; margin-bottom: .75rem; }
+@media (max-width: 650px) { .order-breakdown-row { grid-template-columns: 1fr 1fr; } }
+
+.invoice-breakdown { margin: .4rem 0 0; padding-left: 1.2rem; font-size: .88em; line-height: 1.45; }

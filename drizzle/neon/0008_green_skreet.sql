@@ -1,0 +1,1 @@
+ALTER TABLE "work_items" ADD COLUMN "order_breakdown" text DEFAULT '[]' NOT NULL;

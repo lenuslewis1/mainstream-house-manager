@@ -1,3 +1,4 @@
+import { parseOrderBreakdown } from "../../../../lib/order-breakdown";
 import { database as db } from "../../../../db/client";
 import { storage } from "../../../../lib/storage";
 import { getChatGPTUser } from "../../../chatgpt-auth";
@@ -71,6 +72,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         return Response.json({ error: "Check the required fields." }, { status: 400 });
       }
       if (item.kind === "project" || item.kind === "booking") {
+        const breakdown = input.orderBreakdown === undefined ? null : parseOrderBreakdown(input.orderBreakdown);
+        if (input.orderBreakdown !== undefined && !breakdown) return Response.json({ error: "Check each order variation and quantity." }, { status: 400 });
         const price = String(input.price ?? "0").trim();
         const costItems = input.costItems === undefined ? null : parseOrderCosts(input.costItems);
         if (input.costItems !== undefined && !costItems) return Response.json({ error: "Enter a description and valid amount for each order cost." }, { status: 400 });
@@ -83,8 +86,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const recorded=await db.prepare("SELECT COALESCE(SUM(COALESCE(NULLIF(amount,''),'0')::numeric),0)::text AS total FROM work_items WHERE kind='finance' AND direction='Expense' AND status='Completed' AND project_id=$1 AND COALESCE(NULLIF(currency,''),'GHS')=$2").bind(id,currency).first<{total:string}>();
         if(cents(cost)<cents(item.cost) && cents(cost)<cents(recorded?.total)) return Response.json({error:"The order already has completed expenses of " + currency + " " + recorded?.total + ". Correct those linked entries first before reducing the order costs below that amount."},{status:400});
         const now = Date.now();
-        const statements = [db.prepare("UPDATE work_items SET title = $1, client = $2, service = $3, due_date = $4, notes = $5, price = $6, cost = $7, currency = $8, vendor_id = $9, updated_at = $10, cost_items = $11 WHERE id = $12")
-          .bind(title, client, service, dueDate, notes, price, cost, currency, vendorId || null, now, JSON.stringify(costItems || []), id)];
+        const statements = [db.prepare("UPDATE work_items SET title = $1, client = $2, service = $3, due_date = $4, notes = $5, price = $6, cost = $7, currency = $8, vendor_id = $9, updated_at = $10, cost_items = $11, order_breakdown = COALESCE($13, order_breakdown) WHERE id = $12")
+          .bind(title, client, service, dueDate, notes, price, cost, currency, vendorId || null, now, JSON.stringify(costItems || []), id, breakdown === null ? null : JSON.stringify(breakdown))];
         if (client) statements.push(customerInsert(client, now));
         await db.batch(statements);
       } else {

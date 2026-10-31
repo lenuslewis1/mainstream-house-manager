@@ -1,3 +1,4 @@
+import { parseOrderBreakdown } from "../../../lib/order-breakdown";
 import { database as db } from "../../../db/client";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { memberName, rememberMember } from "../../../lib/team";
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
   const costItems = input.costItems === undefined ? [] : parseOrderCosts(input.costItems);
   if (!costItems) return Response.json({ error: "Enter a description and valid amount for each order cost." }, { status: 400 });
   const cost = input.costItems === undefined ? String(input.cost ?? "0").trim() : costTotal(costItems);
+  const breakdown = input.orderBreakdown === undefined ? [] : parseOrderBreakdown(input.orderBreakdown);
+  if (!breakdown) return Response.json({ error: "Check each order variation and quantity." }, { status: 400 });
   const projectId = String(input.projectId ?? "").trim();
   const vendorId = String(input.vendorId ?? "").trim();
   if (["project", "booking"].includes(kind) && !service) return Response.json({ error: "Choose a service for this order." }, { status: 400 });
@@ -72,8 +75,8 @@ export async function POST(request: Request) {
     if (vendorId && (kind !== "project" && kind !== "booking" || !(await db.prepare("SELECT id FROM contacts WHERE id = $1 AND kind = 'partner'").bind(vendorId).first()))) {
       return Response.json({ error: "Choose an existing vendor." }, { status: 400 });
     }
-    const statements = [db.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, vendor_id, created_at, updated_at, category, payment_method, reference, cost_items, created_by_id, created_by_name, accounting_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)")
-      .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", ["finance", "project", "booking"].includes(kind) ? currency : "", kind === "finance" ? direction : "", ["project", "booking"].includes(kind) ? price : "0", ["project", "booking"].includes(kind) ? cost : "0", kind === "finance" && projectId ? projectId : null, vendorId || null, now, now, kind === "finance" ? details?.category || "" : "", kind === "finance" ? details?.paymentMethod || "" : "", kind === "finance" ? details?.reference || "" : "", JSON.stringify(["project", "booking"].includes(kind) ? costItems : []), actor.userId, await memberName(actor), kind === "finance" ? details?.accountingDate || "" : "")];
+    const statements = [db.prepare("INSERT INTO work_items (id, kind, title, client, service, status, due_date, notes, amount, currency, direction, price, cost, project_id, vendor_id, created_at, updated_at, category, payment_method, reference, cost_items, created_by_id, created_by_name, accounting_date, order_breakdown) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)")
+      .bind(id, kind, title, client, service, status, dueDate, notes, kind === "finance" ? amount : "", ["finance", "project", "booking"].includes(kind) ? currency : "", kind === "finance" ? direction : "", ["project", "booking"].includes(kind) ? price : "0", ["project", "booking"].includes(kind) ? cost : "0", kind === "finance" && projectId ? projectId : null, vendorId || null, now, now, kind === "finance" ? details?.category || "" : "", kind === "finance" ? details?.paymentMethod || "" : "", kind === "finance" ? details?.reference || "" : "", JSON.stringify(["project", "booking"].includes(kind) ? costItems : []), actor.userId, await memberName(actor), kind === "finance" ? details?.accountingDate || "" : "", JSON.stringify(kind === "project" ? breakdown : []))];
     if (client && !(kind === "finance" && direction === "Expense")) statements.push(db.prepare("INSERT INTO contacts (id, kind, name, created_at, updated_at) SELECT $1, 'customer', $2, $3, $4 WHERE NOT EXISTS (SELECT 1 FROM contacts WHERE kind = 'customer' AND LOWER(TRIM(name)) = LOWER($5))")
       .bind(crypto.randomUUID(), client, now, now, client));
     await db.batch(statements);

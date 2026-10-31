@@ -1,10 +1,11 @@
+import { savedBreakdown } from "../../../lib/order-breakdown";
 import { database as db } from "../../../db/client";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { defaultPaymentDetails, type InvoiceRecord } from "../../../lib/invoice";
 
 export const runtime = "edge";
 
-type Order = { title: string; client: string; price: string; currency: string };
+type Order = { title: string; client: string; price: string; currency: string; order_breakdown: string };
 type Customer = { contact_person: string; phone: string; email: string; location: string };
 
 export async function GET() {
@@ -33,12 +34,12 @@ export async function POST(request: Request) {
         .bind(today, JSON.stringify([{ description: "", quantity: 1, unitPrice: "0" }]), defaultPaymentDetails, now).first<{ id: number }>();
       return Response.json({ id: invoice!.id }, { status: 201 });
     }
-    const order = await db.prepare("SELECT title, client, price, currency FROM work_items WHERE id = $1 AND kind IN ('project', 'booking')").bind(orderId).first<Order>();
+    const order = await db.prepare("SELECT title, client, price, currency, order_breakdown FROM work_items WHERE id = $1 AND kind IN ('project', 'booking')").bind(orderId).first<Order>();
     if (!order) return Response.json({ error: "Order not found." }, { status: 404 });
     const customer = order.client ? await db.prepare("SELECT contact_person, phone, email, location FROM contacts WHERE kind = 'customer' AND LOWER(TRIM(name)) = LOWER($1) LIMIT 1").bind(order.client).first<Customer>() : null;
     const billToDetails = customer ? [customer.contact_person, customer.location, customer.phone, customer.email].filter(Boolean).join("\n") : "";
     await db.prepare("INSERT INTO invoices (order_id, issue_date, due_date, bill_to_name, bill_to_details, currency, line_items, payment_details, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT DO NOTHING")
-      .bind(orderId, today, today, order.client, billToDetails, order.currency || "GHS", JSON.stringify([{ description: order.title, quantity: 1, unitPrice: order.price || "0" }]), defaultPaymentDetails, now, now).run();
+      .bind(orderId, today, today, order.client, billToDetails, order.currency || "GHS", JSON.stringify([{ description: order.title, quantity: 1, unitPrice: order.price || "0", breakdown: savedBreakdown(order.order_breakdown) }]), defaultPaymentDetails, now, now).run();
     const invoice = await db.prepare("SELECT id FROM invoices WHERE order_id = $1").bind(orderId).first<{ id: number }>();
     return Response.json({ id: invoice?.id });
   } catch (error) {

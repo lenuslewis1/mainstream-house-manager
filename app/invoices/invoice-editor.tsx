@@ -1,5 +1,7 @@
 "use client";
 import TopScrollArea from "../top-scroll-area";
+import OrderBreakdownFields from "../order-breakdown-fields";
+import { savedBreakdown } from "../../lib/order-breakdown";
 
 import PomaaForm from "../pomaa-form";
 import { useCallback, useEffect, useState } from "react";
@@ -29,7 +31,7 @@ function InvoicePaper({ invoice, draft }: { invoice: InvoiceRecord; draft: Draft
         <div className="invoice-customer"><strong>Invoice To:</strong><span>{draft.bill_to_name || "Customer name"}</span><span className="invoice-multiline">{draft.bill_to_details}</span></div>
         <div className="invoice-meta"><div><strong>Invoice#:</strong><span>{invoiceNumber(invoice)}</span></div><div><strong>Date:</strong><span>{formattedDate(draft.issue_date)}</span></div><div><strong>Due Date:</strong><span>{formattedDate(draft.due_date)}</span></div></div>
       </div>
-      <table className="invoice-items"><colgroup><col style={{ width: "46%" }}/><col style={{ width: "14%" }}/><col style={{ width: "20%" }}/><col style={{ width: "20%" }}/></colgroup><thead><tr><th>DESCRIPTION</th><th>QUANTITY</th><th>UNIT PRICE</th><th>AMOUNT</th></tr></thead><tbody>{draft.line_items.map((line, index) => <tr key={index}><td>{line.description}</td><td>{line.quantity}</td><td>{money(Math.round(Number(line.unitPrice || 0) * 100), draft.currency)}</td><td>{money(line.quantity * Math.round(Number(line.unitPrice || 0) * 100), draft.currency)}</td></tr>)}</tbody></table>
+      <table className="invoice-items"><colgroup><col style={{ width: "46%" }}/><col style={{ width: "14%" }}/><col style={{ width: "20%" }}/><col style={{ width: "20%" }}/></colgroup><thead><tr><th>DESCRIPTION</th><th>QUANTITY</th><th>UNIT PRICE</th><th>AMOUNT</th></tr></thead><tbody>{draft.line_items.map((line, index) => <tr key={index}><td>{line.description}{Boolean(line.breakdown?.length) && <ul className="invoice-breakdown">{line.breakdown!.map((part, i) => <li key={i}>{part.description}{part.dimensions ? ` · ${part.dimensions}` : ""} · Qty {part.quantity}</li>)}</ul>}</td><td>{line.quantity}</td><td>{money(Math.round(Number(line.unitPrice || 0) * 100), draft.currency)}</td><td>{money(line.quantity * Math.round(Number(line.unitPrice || 0) * 100), draft.currency)}</td></tr>)}</tbody></table>
       <div className="invoice-bottom"><div className="invoice-payment"><strong>Payment Details:</strong><span className="invoice-multiline">{draft.payment_details}</span></div><div className="invoice-totals"><div><span>Sub Total</span><strong>{money(total, draft.currency)}</strong></div><div className="invoice-grand"><span>Grand Total</span><strong>{money(total, draft.currency)}</strong></div></div></div>
     </div>
   </article>;
@@ -57,6 +59,18 @@ export default function InvoiceEditor({ id }: { id: string }) {
     if (!draft) return;
     change("line_items", draft.line_items.map((line, current) => current === index ? { ...line, [key]: key === "quantity" ? Number(value) : value } : line));
   }
+  async function importBreakdown() {
+    if (!invoice?.order_id || !draft) return;
+    setError("");
+    try {
+      const response = await fetch("/api/items", { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not load the order breakdown.");
+      const data = await response.json() as { items: {id: string; order_breakdown?: string}[] };
+      const parts = savedBreakdown(data.items.find(item => item.id === invoice.order_id)?.order_breakdown);
+      if (!parts.length) throw new Error("This order has no saved breakdown yet. Add variations to the order first.");
+      change("line_items", draft.line_items.map((line, index) => index === 0 ? { ...line, breakdown: parts } : line));
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load the order breakdown."); }
+  }
   async function save() {
     if (!draft) return false;
     if (!/^[A-Z]{3}$/.test(draft.currency) || !draft.bill_to_name.trim() || !draft.payment_details.trim() || !draft.issue_date || !draft.due_date || !parseInvoiceLines(draft.line_items)) { setError("Complete the customer, dates, line items, and payment details before saving."); return false; }
@@ -81,6 +95,8 @@ export default function InvoiceEditor({ id }: { id: string }) {
         <div className="invoice-date-fields"><label>Invoice date<input type="date" value={draft.issue_date} onChange={event => change("issue_date", event.target.value)}/></label><label>Due date<input type="date" value={draft.due_date} onChange={event => change("due_date", event.target.value)}/></label></div>
         <div className="invoice-line-heading"><h3>Line items</h3><button type="button" disabled={draft.line_items.length >= 10} onClick={() => change("line_items", [...draft.line_items, { description: "", quantity: 1, unitPrice: "0" }])}><Plus size={15}/> Add item</button></div>
         {draft.line_items.map((line, index) => <div className="invoice-line-editor" key={index}><label>Description<input value={line.description} onChange={event => lineChange(index, "description", event.target.value)} maxLength={200}/></label><div><label>Qty<input type="number" min="1" max="9999" step="1" value={line.quantity} onChange={event => lineChange(index, "quantity", event.target.value)}/></label><label>Unit price ({draft.currency})<input type="number" min="0" step="0.01" value={line.unitPrice} onChange={event => lineChange(index, "unitPrice", event.target.value)}/></label><button type="button" aria-label={`Remove item ${index + 1}`} disabled={draft.line_items.length === 1} onClick={() => change("line_items", draft.line_items.filter((_, current) => current !== index))}><Trash2 size={16}/></button></div></div>)}
+        {invoice.order_id && !draft.line_items.some(line => line.breakdown?.length) && <button type="button" className="outline-button" onClick={() => void importBreakdown()}>Import order breakdown</button>}
+        {draft.line_items.map((line, index) => line.breakdown !== undefined && <OrderBreakdownFields key={index} lines={line.breakdown} onChange={breakdown => change("line_items", draft.line_items.map((item, i) => i === index ? { ...item, breakdown } : item))}/>)}
         <label>Payment details<textarea value={draft.payment_details} onChange={event => change("payment_details", event.target.value)} rows={4} maxLength={1000}/></label>
         <p className="invoice-editor-total">Grand total <strong>{money(invoiceTotal(draft.line_items), draft.currency)}</strong></p>
       </section>
